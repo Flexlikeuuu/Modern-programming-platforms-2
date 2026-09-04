@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>Project Tracker (SSR)</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 2rem; background: #f4f5f7; color: #333; }
+    .container { max-width: 900px; margin: 0 auto; background: #fff; padding: 2rem; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+    h1, h2 { margin-top: 0; }
+    .form-group { margin-bottom: 1rem; display: flex; gap: 1rem; flex-wrap: wrap; }
+    input, select, button { padding: 0.5rem; border: 1px solid #ccc; border-radius: 4px; }
+    button { cursor: pointer; background: #0052cc; color: white; border: none; }
+    button:hover { background: #00388d; }
+    .filters { background: #eaeef4; padding: 1rem; border-radius: 6px; margin-bottom: 1.5rem; }
+    .card { border: 1px solid #e0e0e0; padding: 1rem; border-radius: 6px; margin-bottom: 1rem; background: #fafafa; }
+    .card.overdue { border-left: 5px solid #de350b; }
+    .badge { padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.85rem; font-weight: bold; }
+    .status-pending { background: #ffebe6; color: #de350b; }
+    .status-in_progress { background: #deebff; color: #0747a6; }
+    .status-completed { background: #e3fcef; color: #006644; }
+    .actions { display: flex; gap: 0.5rem; align-items: center; margin-top: 0.5rem; flex-wrap: wrap; }
+    .files-list { margin-top: 0.5rem; font-size: 0.9rem; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Project Tracker</h1>
+
+    <h2>Новая задача</h2>
+    <form action="/items/create" method="POST" class="form-group">
+      <input type="text" name="title" placeholder="Название задачи" required>
+      <input type="text" name="category" placeholder="Категория (например, Backend)" required>
+      <input type="date" name="dueDate" required>
+      <button type="submit">Добавить</button>
+    </form>
+
+    <hr>
+
+    <div class="filters">
+      <h2>Фильтры</h2>
+      <form action="/" method="GET" class="form-group">
+        <div>
+          <label>Статус:</label>
+          <select name="statusFilter">
+            <option value="all" <%= selectedStatus === 'all' ? 'selected' : '' %>>Все</option>
+            <option value="pending" <%= selectedStatus === 'pending' ? 'selected' : '' %>>В очереди</option>
+            <option value="in_progress" <%= selectedStatus === 'in_progress' ? 'selected' : '' %>>В работе</option>
+            <option value="completed" <%= selectedStatus === 'completed' ? 'selected' : '' %>>Завершено</option>
+          </select>
+        </div>
+
+        <div>
+          <label>Категория:</label>
+          <select name="categoryFilter">
+            <option value="all" <%= selectedCategory === 'all' ? 'selected' : '' %>>Все</option>
+            <% categories.forEach(cat => { %>
+              <option value="<%= cat %>" <%= selectedCategory === cat ? 'selected' : '' %>><%= cat %></option>
+            <% }) %>
+          </select>
+        </div>
+
+        <button type="submit">Применить</button>
+        <a href="/" style="align-self: center; font-size: 0.9rem;">Сбросить</a>
+      </form>
+    </div>
+
+    <h2>Список задач (<%= items.length %>)</h2>
+
+    <% if (items.length === 0) { %>
+      <p>Задачи не найдены.</p>
+    <% } %>
+
+    <% items.forEach(item => { 
+      const isOverdue = new Date(item.dueDate) < new Date() && item.status !== 'completed';
+    %>
+      <div class="card <%= isOverdue ? 'overdue' : '' %>">
+        <h3><%= item.title %></h3>
+        <p>
+          Категория: <strong><%= item.category %></strong> | 
+          Срок: <strong><%= item.dueDate %></strong> 
+          <% if (isOverdue) { %><span style="color: red;">(Просрочено!)</span><% } %>
+        </p>
+        <p>
+          Статус: 
+          <span class="badge status-<%= item.status %>">
+            <%= item.status === 'pending' ? 'В очереди' : item.status === 'in_progress' ? 'В работе' : 'Завершено' %>
+          </span>
+        </p>
+
+        <% if (item.attachments.length > 0) { %>
+          <div class="files-list">
+            <strong>Файлы:</strong>
+            <ul>
+              <% item.attachments.forEach(file => { %>
+                <li><a href="<%= file.path %>" target="_blank"><%= file.originalName %></a></li>
+              <% }) %>
+            </ul>
+          </div>
+        <% } %>
+
+        <div class="actions">
+          <form action="/items/<%= item.id %>/status" method="POST">
+            <select name="status" onchange="this.form.submit()">
+              <option value="pending" <%= item.status === 'pending' ? 'selected' : '' %>>В очередь</option>
+              <option value="in_progress" <%= item.status === 'in_progress' ? 'selected' : '' %>>В работу</option>
+              <option value="completed" <%= item.status === 'completed' ? 'selected' : '' %>>Завершить</option>
+            </select>
+          </form>
+
+          <form action="/items/<%= item.id %>/upload" method="POST" enctype="multipart/form-data">
+            <input type="file" name="attachment" required>
+            <button type="submit">Прикрепить файл</button>
+          </form>
+
+          <form action="/items/<%= item.id %>/delete" method="POST">
+            <button type="submit" style="background: #de350b;">Удалить</button>
+          </form>
+        </div>
+      </div>
+    <% }) %>
+
+  </div>
+</body>
+</html>
