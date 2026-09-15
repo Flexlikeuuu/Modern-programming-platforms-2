@@ -2,45 +2,32 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
-  <title>Project Tracker (SSR)</title>
-  <style>
-    body { font-family: system-ui, sans-serif; margin: 2rem; background: #f4f5f7; color: #333; }
-    .container { max-width: 900px; margin: 0 auto; background: #fff; padding: 2rem; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
-    h1, h2 { margin-top: 0; }
-    .form-group { margin-bottom: 1rem; display: flex; gap: 1rem; flex-wrap: wrap; }
-    input, select, button { padding: 0.5rem; border: 1px solid #ccc; border-radius: 4px; }
-    button { cursor: pointer; background: #0052cc; color: white; border: none; }
-    button:hover { background: #00388d; }
-    .filters { background: #eaeef4; padding: 1rem; border-radius: 6px; margin-bottom: 1.5rem; }
-    .card { border: 1px solid #e0e0e0; padding: 1rem; border-radius: 6px; margin-bottom: 1rem; background: #fafafa; }
-    .card.overdue { border-left: 5px solid #de350b; }
-    .badge { padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.85rem; font-weight: bold; }
-    .status-pending { background: #ffebe6; color: #de350b; }
-    .status-in_progress { background: #deebff; color: #0747a6; }
-    .status-completed { background: #e3fcef; color: #006644; }
-    .actions { display: flex; gap: 0.5rem; align-items: center; margin-top: 0.5rem; flex-wrap: wrap; }
-    .files-list { margin-top: 0.5rem; font-size: 0.9rem; }
-  </style>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Project Tracker</title>
+  <link rel="stylesheet" href="/css/styles.css">
 </head>
 <body>
+
   <div class="container">
-    <h1>Project Tracker</h1>
+    <header>
+      <h1>Project Tracker</h1>
+    </header>
 
-    <h2>Новая задача</h2>
-    <form action="/items/create" method="POST" class="form-group">
-      <input type="text" name="title" placeholder="Название задачи" required>
-      <input type="text" name="category" placeholder="Категория (например, Backend)" required>
-      <input type="date" name="dueDate" required>
-      <button type="submit">Добавить</button>
-    </form>
+    <div class="section-card">
+      <h2 class="section-title">Новая задача</h2>
+      <form action="/items/create" method="POST" class="form-grid">
+        <input type="text" name="title" placeholder="Название задачи" required>
+        <input type="text" name="category" placeholder="Категория (например, Backend)" required>
+        <input type="date" name="dueDate" required>
+        <button type="submit">Добавить</button>
+      </form>
+    </div>
 
-    <hr>
-
-    <div class="filters">
-      <h2>Фильтры</h2>
-      <form action="/" method="GET" class="form-group">
-        <div>
-          <label>Статус:</label>
+    <div class="section-card">
+      <h2 class="section-title">Фильтры</h2>
+      <form action="/" method="GET" class="form-grid">
+        <div class="filter-group">
+          <label>Статус</label>
           <select name="statusFilter">
             <option value="all" <%= selectedStatus === 'all' ? 'selected' : '' %>>Все</option>
             <option value="pending" <%= selectedStatus === 'pending' ? 'selected' : '' %>>В очереди</option>
@@ -49,8 +36,8 @@
           </select>
         </div>
 
-        <div>
-          <label>Категория:</label>
+        <div class="filter-group">
+          <label>Категория</label>
           <select name="categoryFilter">
             <option value="all" <%= selectedCategory === 'all' ? 'selected' : '' %>>Все</option>
             <% categories.forEach(cat => { %>
@@ -59,46 +46,50 @@
           </select>
         </div>
 
-        <button type="submit">Применить</button>
-        <a href="/" style="align-self: center; font-size: 0.9rem;">Сбросить</a>
+        <div style="display: flex; gap: 0.5rem; align-items: flex-end;">
+          <button type="submit" style="flex: 1;">Применить</button>
+          <a href="/" style="padding: 0.625rem; color: var(--text-muted); text-decoration: none; font-size: 0.85rem;">Сброс</a>
+        </div>
       </form>
     </div>
 
-    <h2>Список задач (<%= items.length %>)</h2>
-
     <% if (items.length === 0) { %>
-      <p>Задачи не найдены.</p>
+      <div class="section-card empty-state">
+        <p>Задач пока нет. Добавьте первую задачу с помощью формы выше!</p>
+      </div>
     <% } %>
 
     <% items.forEach(item => { 
       const isOverdue = new Date(item.dueDate) < new Date() && item.status !== 'completed';
     %>
-      <div class="card <%= isOverdue ? 'overdue' : '' %>">
-        <h3><%= item.title %></h3>
-        <p>
-          Категория: <strong><%= item.category %></strong> | 
-          Срок: <strong><%= item.dueDate %></strong> 
-          <% if (isOverdue) { %><span style="color: red;">(Просрочено!)</span><% } %>
-        </p>
-        <p>
-          Статус: 
+      <div class="task-card <%= isOverdue ? 'overdue' : '' %>">
+        <div class="task-header">
+          <h3 class="task-title"><%= item.title %></h3>
           <span class="badge status-<%= item.status %>">
             <%= item.status === 'pending' ? 'В очереди' : item.status === 'in_progress' ? 'В работе' : 'Завершено' %>
           </span>
-        </p>
+        </div>
+
+        <div class="task-meta">
+          <span>Категория: <strong><%= item.category %></strong></span>
+          <span>
+            Срок: <strong><%= item.dueDate %></strong>
+            <% if (isOverdue) { %><span class="overdue-tag">(Просрочено)</span><% } %>
+          </span>
+        </div>
 
         <% if (item.attachments.length > 0) { %>
-          <div class="files-list">
-            <strong>Файлы:</strong>
-            <ul>
+          <div class="files-container">
+            <strong>Прикрепленные файлы:</strong>
+            <ul class="files-list">
               <% item.attachments.forEach(file => { %>
-                <li><a href="<%= file.path %>" target="_blank"><%= file.originalName %></a></li>
+                <li><a href="<%= file.path %>" target="_blank">📄 <%= file.originalName %></a></li>
               <% }) %>
             </ul>
           </div>
         <% } %>
 
-        <div class="actions">
+        <div class="actions-bar">
           <form action="/items/<%= item.id %>/status" method="POST">
             <select name="status" onchange="this.form.submit()">
               <option value="pending" <%= item.status === 'pending' ? 'selected' : '' %>>В очередь</option>
@@ -107,18 +98,19 @@
             </select>
           </form>
 
-          <form action="/items/<%= item.id %>/upload" method="POST" enctype="multipart/form-data">
+          <form action="/items/<%= item.id %>/upload" method="POST" enctype="multipart/form-data" class="upload-form">
             <input type="file" name="attachment" required>
-            <button type="submit">Прикрепить файл</button>
+            <button type="submit">Прикрепить</button>
           </form>
 
-          <form action="/items/<%= item.id %>/delete" method="POST">
-            <button type="submit" style="background: #de350b;">Удалить</button>
+          <form action="/items/<%= item.id %>/delete" method="POST" style="margin-left: auto;">
+            <button type="submit" class="btn-danger">Удалить</button>
           </form>
         </div>
       </div>
     <% }) %>
 
   </div>
+
 </body>
 </html>

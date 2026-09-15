@@ -10,6 +10,29 @@ if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir);
 }
 
+const dataFilePath = path.join(__dirname, "data.json");
+
+const loadItems = () => {
+  if (!fs.existsSync(dataFilePath)) {
+    fs.writeFileSync(dataFilePath, JSON.stringify([], null, 2));
+    return [];
+  }
+  try {
+    const data = fs.readFileSync(dataFilePath, "utf8");
+    return JSON.parse(data);
+  } catch (err) {
+    return [];
+  }
+};
+
+const saveItems = (items) => {
+  try {
+    fs.writeFileSync(dataFilePath, JSON.stringify(items, null, 2));
+  } catch (err) {}
+};
+
+let items = loadItems();
+
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     cb(null, uploadDir);
@@ -25,26 +48,10 @@ app.set("view engine", "ejs");
 app.set("views", path.join(__dirname, "views"));
 
 app.use(express.urlencoded({ extended: true }));
-app.use("/uploads", express.static(uploadDir));
 
-let items = [
-  {
-    id: 1,
-    title: "Разработать архитектуру БД",
-    category: "Backend",
-    status: "in_progress",
-    dueDate: "2026-09-10",
-    attachments: [],
-  },
-  {
-    id: 2,
-    title: "Подготовить макеты UI",
-    category: "Design",
-    status: "completed",
-    dueDate: "2026-09-01",
-    attachments: [],
-  },
-];
+// Подключение статической папки public (CSS, JS на клиенте, картинки)
+app.use(express.static(path.join(__dirname, "public")));
+app.use("/uploads", express.static(uploadDir));
 
 app.get("/", (req, res) => {
   const { statusFilter, categoryFilter } = req.query;
@@ -86,6 +93,7 @@ app.post("/items/create", (req, res) => {
       attachments: [],
     };
     items.push(newItem);
+    saveItems(items);
   }
 
   res.redirect("/");
@@ -98,6 +106,7 @@ app.post("/items/:id/status", (req, res) => {
   const item = items.find((i) => i.id === itemId);
   if (item && ["pending", "in_progress", "completed"].includes(status)) {
     item.status = status;
+    saveItems(items);
   }
 
   res.redirect("/");
@@ -113,6 +122,7 @@ app.post("/items/:id/upload", upload.single("attachment"), (req, res) => {
       filename: req.file.filename,
       path: `/uploads/${req.file.filename}`,
     });
+    saveItems(items);
   }
 
   res.redirect("/");
@@ -121,6 +131,7 @@ app.post("/items/:id/upload", upload.single("attachment"), (req, res) => {
 app.post("/items/:id/delete", (req, res) => {
   const itemId = Number(req.params.id);
   items = items.filter((i) => i.id !== itemId);
+  saveItems(items);
   res.redirect("/");
 });
 

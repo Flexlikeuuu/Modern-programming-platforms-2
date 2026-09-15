@@ -1,0 +1,18 @@
+[
+  {
+    "id": 1789463799803,
+    "title": "Сделать лабораторную работу",
+    "category": "Учеба",
+    "status": "in_progress",
+    "dueDate": "2026-09-16",
+    "attachments": []
+  },
+  {
+    "id": 1789463836508,
+    "title": "Сходить в магазин",
+    "category": "Домашние задачи",
+    "status": "pending",
+    "dueDate": "2026-09-18",
+    "attachments": []
+  }
+]
