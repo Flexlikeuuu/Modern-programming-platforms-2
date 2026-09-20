@@ -1,0 +1,9 @@
+CREATE TABLE IF NOT EXISTS rooms (
+  id SERIAL PRIMARY KEY,
+  title VARCHAR(255) NOT NULL,
+  price NUMERIC(10, 2) NOT NULL,
+  description TEXT,
+  image_url VARCHAR(500),
+  is_booked BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
