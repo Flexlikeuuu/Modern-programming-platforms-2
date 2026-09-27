@@ -4,6 +4,11 @@ import multer from "multer";
 import path from "path";
 import fs from "fs";
 import pkg from "pg";
+import { logger, httpLogger } from "./lib/logger.js";
+import { HttpError, asyncHandler, errorHandler, notFoundHandler } from "./lib/errors.js";
+import { createAuthRouter } from "./routes/auth.js";
+import { authRequired, requireRoles, hashPassword } from "./middleware/auth.js";
+import { ROLES } from "./lib/roles.js";
 
 const { Pool } = pkg;
 const app = express();
@@ -14,7 +19,7 @@ const pool = new Pool({
   user: process.env.DB_USER || "postgres",
   password: process.env.DB_PASSWORD || "postgres",
   database: process.env.DB_NAME || "hotel_db",
-  port: 5432,
+  port: Number(process.env.DB_PORT || 5432),
 });
 
 const uploadDir = path.join(process.cwd(), "uploads");
@@ -37,7 +42,7 @@ const upload = multer({
     if (file.mimetype.startsWith("image/")) {
       cb(null, true);
     } else {
-      cb(new Error("Разрешены только изображения"));
+      cb(new HttpError(400, "UNSUPPORTED_MEDIA_TYPE", "Разрешены только изображения"));
     }
   },
 });
@@ -63,46 +68,63 @@ const parseBookedFlag = (value) => {
   return Boolean(value);
 };
 
+const parseId = (id) => {
+  const n = Number(id);
+  if (!Number.isInteger(n) || n <= 0) {
+    throw new HttpError(400, "VALIDATION_ERROR", "Некорректный идентификатор");
+  }
+  return n;
+};
+
+app.disable("x-powered-by");
+app.set("trust proxy", 1);
 app.use(cors({ origin: true }));
-app.use(express.json());
+app.use(express.json({ limit: "1mb" }));
+app.use(httpLogger);
 app.use("/uploads", express.static(uploadDir));
 
-app.get("/api/rooms", async (req, res) => {
-  try {
+app.get("/api/health", (req, res) => {
+  res.status(200).json({ status: "ok" });
+});
+
+app.use("/api/auth", createAuthRouter(pool));
+
+app.get(
+  "/api/rooms",
+  authRequired(pool),
+  asyncHandler(async (req, res) => {
     const { rows } = await pool.query("SELECT * FROM rooms ORDER BY id DESC");
     res.status(200).json(rows);
-  } catch (err) {
-    res.status(500).json({ error: "Ошибка при получении списка номеров" });
-  }
-});
+  }),
+);
 
-app.get("/api/rooms/:id", async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { rows } = await pool.query("SELECT * FROM rooms WHERE id = $1", [
-      id,
-    ]);
+app.get(
+  "/api/rooms/:id",
+  authRequired(pool),
+  asyncHandler(async (req, res) => {
+    const id = parseId(req.params.id);
+    const { rows } = await pool.query("SELECT * FROM rooms WHERE id = $1", [id]);
     if (rows.length === 0) {
-      return res.status(404).json({ error: "Номер не найден" });
+      throw new HttpError(404, "NOT_FOUND", "Номер не найден");
     }
     res.status(200).json(rows[0]);
-  } catch (err) {
-    res.status(500).json({ error: "Ошибка сервера" });
-  }
-});
+  }),
+);
 
-app.post("/api/rooms", upload.single("image"), async (req, res) => {
-  try {
+app.post(
+  "/api/rooms",
+  authRequired(pool),
+  requireRoles(ROLES.MANAGER, ROLES.ADMIN),
+  upload.single("image"),
+  asyncHandler(async (req, res) => {
     const { title, price, description } = req.body;
 
     if (!title || title.trim() === "") {
-      return res.status(400).json({ error: "Название номера обязательно" });
+      throw new HttpError(400, "VALIDATION_ERROR", "Название номера обязательно");
     }
     const parsedPrice = parsePrice(price);
     if (parsedPrice === null) {
-      return res
-        .status(400)
-        .json({ error: "Укажите корректную цену больше 0" });
+      throw new HttpError(400, "VALIDATION_ERROR", "Укажите корректную цену больше 0");
     }
 
     const imageUrl = req.file ? `/uploads/${req.file.filename}` : null;
@@ -112,33 +134,36 @@ app.post("/api/rooms", upload.single("image"), async (req, res) => {
       [title.trim(), parsedPrice, description || "", imageUrl],
     );
 
+    logger.info(
+      { event: "room.created", roomId: rows[0].id, userId: req.user.id },
+      "room_created",
+    );
     res.status(201).json(rows[0]);
-  } catch (err) {
-    res
-      .status(500)
-      .json({ error: err.message || "Ошибка при создании номера" });
-  }
-});
+  }),
+);
 
-app.put("/api/rooms/:id", upload.single("image"), async (req, res) => {
-  try {
-    const { id } = req.params;
+app.put(
+  "/api/rooms/:id",
+  authRequired(pool),
+  requireRoles(ROLES.MANAGER, ROLES.ADMIN),
+  upload.single("image"),
+  asyncHandler(async (req, res) => {
+    const id = parseId(req.params.id);
     const { title, price, description, is_booked } = req.body;
 
     if (!title || title.trim() === "") {
-      return res.status(400).json({ error: "Название номера обязательно" });
+      throw new HttpError(400, "VALIDATION_ERROR", "Название номера обязательно");
     }
     const parsedPrice = parsePrice(price);
     if (parsedPrice === null) {
-      return res.status(400).json({ error: "Укажите корректную цену" });
+      throw new HttpError(400, "VALIDATION_ERROR", "Укажите корректную цену");
     }
 
-    const existing = await pool.query(
-      "SELECT image_url FROM rooms WHERE id = $1",
-      [id],
-    );
+    const existing = await pool.query("SELECT image_url FROM rooms WHERE id = $1", [
+      id,
+    ]);
     if (existing.rows.length === 0) {
-      return res.status(404).json({ error: "Ресурс не найден для обновления" });
+      throw new HttpError(404, "NOT_FOUND", "Ресурс не найден для обновления");
     }
 
     let imageUrl = existing.rows[0].image_url;
@@ -159,17 +184,20 @@ app.put("/api/rooms/:id", upload.single("image"), async (req, res) => {
       ],
     );
 
+    logger.info(
+      { event: "room.updated", roomId: id, userId: req.user.id },
+      "room_updated",
+    );
     res.status(200).json(rows[0]);
-  } catch (err) {
-    res
-      .status(500)
-      .json({ error: err.message || "Ошибка при обновлении номера" });
-  }
-});
+  }),
+);
 
-app.patch("/api/rooms/:id/book", async (req, res) => {
-  try {
-    const { id } = req.params;
+app.patch(
+  "/api/rooms/:id/book",
+  authRequired(pool),
+  requireRoles(ROLES.GUEST, ROLES.MANAGER, ROLES.ADMIN),
+  asyncHandler(async (req, res) => {
+    const id = parseId(req.params.id);
     const { is_booked } = req.body;
 
     const { rows } = await pool.query(
@@ -178,46 +206,95 @@ app.patch("/api/rooms/:id/book", async (req, res) => {
     );
 
     if (rows.length === 0) {
-      return res.status(404).json({ error: "Номер не найден" });
+      throw new HttpError(404, "NOT_FOUND", "Номер не найден");
     }
 
+    logger.info(
+      {
+        event: "room.booked",
+        roomId: id,
+        userId: req.user.id,
+        is_booked: Boolean(is_booked),
+      },
+      "room_booking_changed",
+    );
     res.status(200).json(rows[0]);
-  } catch (err) {
-    res
-      .status(500)
-      .json({ error: "Ошибка при изменении статуса бронирования" });
-  }
-});
+  }),
+);
 
-app.delete("/api/rooms/:id", async (req, res) => {
-  try {
-    const { id } = req.params;
+app.delete(
+  "/api/rooms/:id",
+  authRequired(pool),
+  requireRoles(ROLES.ADMIN),
+  asyncHandler(async (req, res) => {
+    const id = parseId(req.params.id);
     const { rows } = await pool.query(
       "DELETE FROM rooms WHERE id = $1 RETURNING *",
       [id],
     );
 
     if (rows.length === 0) {
-      return res.status(404).json({ error: "Номер не найден для удаления" });
+      throw new HttpError(404, "NOT_FOUND", "Номер не найден для удаления");
     }
 
     deleteUploadIfExists(rows[0].image_url);
-
+    logger.info(
+      { event: "room.deleted", roomId: id, userId: req.user.id },
+      "room_deleted",
+    );
     res.status(200).json({ message: "Номер успешно удален", id });
-  } catch (err) {
-    res.status(500).json({ error: "Ошибка при удалении номера" });
+  }),
+);
+
+app.use(notFoundHandler);
+app.use(errorHandler(logger));
+
+const seedUsers = async () => {
+  const { rows } = await pool.query("SELECT COUNT(*)::int AS n FROM users");
+  if (rows[0].n > 0) return;
+
+  const seeds = [
+    {
+      email: "admin@hotel.local",
+      password: "Admin12345",
+      name: "Администратор",
+      role: ROLES.ADMIN,
+    },
+    {
+      email: "manager@hotel.local",
+      password: "Manager12345",
+      name: "Менеджер",
+      role: ROLES.MANAGER,
+    },
+    {
+      email: "guest@hotel.local",
+      password: "Guest12345",
+      name: "Гость",
+      role: ROLES.GUEST,
+    },
+  ];
+
+  for (const u of seeds) {
+    const passwordHash = await hashPassword(u.password);
+    await pool.query(
+      "INSERT INTO users (email, password_hash, name, role) VALUES ($1, $2, $3, $4)",
+      [u.email, passwordHash, u.name, u.role],
+    );
   }
-});
+
+  logger.info({ event: "db.seeded", users: seeds.length }, "demo_users_created");
+};
 
 const initDb = async () => {
   try {
     const sql = fs.readFileSync(path.join(process.cwd(), "schema.sql"), "utf8");
     await pool.query(sql);
-    app.listen(PORT, "0.0.0.0", () =>
-      console.log(`Server running on port ${PORT}`),
-    );
+    await seedUsers();
+    app.listen(PORT, "0.0.0.0", () => {
+      logger.info({ event: "server.start", port: PORT }, `server_listening`);
+    });
   } catch (err) {
-    console.error("Ошибка инициализации БД:", err);
+    logger.error({ err, event: "db.init_failed" }, "db_init_retry");
     setTimeout(initDb, 5000);
   }
 };
