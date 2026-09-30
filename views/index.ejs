@@ -24,8 +24,13 @@
     </div>
 
     <div class="section-card">
-      <h2 class="section-title">Фильтры</h2>
+      <h2 class="section-title">Фильтры и поиск</h2>
       <form action="/" method="GET" class="form-grid">
+        <div class="filter-group">
+          <label>Поиск по названию</label>
+          <input type="text" name="q" placeholder="Поиск..." value="<%= searchQuery %>">
+        </div>
+
         <div class="filter-group">
           <label>Статус</label>
           <select name="statusFilter">
@@ -46,6 +51,15 @@
           </select>
         </div>
 
+        <div class="filter-group">
+          <label>Сортировка</label>
+          <select name="sortBy">
+            <option value="newest" <%= sortBy === 'newest' ? 'selected' : '' %>>Сначала новые</option>
+            <option value="dueDateAsc" <%= sortBy === 'dueDateAsc' ? 'selected' : '' %>>Срок: сначала ранние</option>
+            <option value="dueDateDesc" <%= sortBy === 'dueDateDesc' ? 'selected' : '' %>>Срок: сначала поздние</option>
+          </select>
+        </div>
+
         <div style="display: flex; gap: 0.5rem; align-items: flex-end;">
           <button type="submit" style="flex: 1;">Применить</button>
           <a href="/" style="padding: 0.625rem; color: var(--text-muted); text-decoration: none; font-size: 0.85rem;">Сброс</a>
@@ -55,7 +69,7 @@
 
     <% if (items.length === 0) { %>
       <div class="section-card empty-state">
-        <p>Задач пока нет. Добавьте первую задачу с помощью формы выше!</p>
+        <p>Задачи не найдены. Измените параметры фильтрации или добавьте новую задачу!</p>
       </div>
     <% } %>
 
