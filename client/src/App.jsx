@@ -454,14 +454,7 @@ export default function App() {
             <div className="sessions-panel">
               <div className="catalog-header">
                 <h2>Активные подключения</h2>
-                <span className="catalog-count">
-                  {sessions.length} / {maxSessions}
-                </span>
               </div>
-              <p className="sessions-hint">
-                Одновременно допускается не больше {maxSessions} сессий. Старые автоматически
-                закрываются.
-              </p>
               <ul className="session-list">
                 {sessions.map((s) => (
                   <li key={s.id} className={s.current ? "current" : ""}>

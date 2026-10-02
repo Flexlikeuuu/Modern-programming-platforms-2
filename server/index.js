@@ -42,7 +42,7 @@ const upload = multer({
     if (file.mimetype.startsWith("image/")) {
       cb(null, true);
     } else {
-      cb(new HttpError(400, "UNSUPPORTED_MEDIA_TYPE", "Разрешены только изображения"));
+      cb(new HttpError(415, "UNSUPPORTED_MEDIA_TYPE", "Разрешены только изображения"));
     }
   },
 });

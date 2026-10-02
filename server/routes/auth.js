@@ -11,6 +11,7 @@ import {
   hashToken,
   signAccessToken,
 } from "../middleware/auth.js";
+import { emailService } from "../lib/email.js";
 
 const MAX_SESSIONS = Number(process.env.MAX_SESSIONS || 3);
 const SESSION_TTL_HOURS = Number(process.env.SESSION_TTL_HOURS || 24);
@@ -18,6 +19,7 @@ const LOCK_AFTER_FAILS = Number(process.env.LOCK_AFTER_FAILS || 5);
 const LOCK_MINUTES = Number(process.env.LOCK_MINUTES || 15);
 const IP_WINDOW_MINUTES = 15;
 const IP_MAX_ATTEMPTS = Number(process.env.IP_MAX_ATTEMPTS || 20);
+const RESET_TOKEN_TTL_MINUTES = Number(process.env.RESET_TOKEN_TTL_MINUTES || 15);
 
 const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -302,6 +304,151 @@ export function createAuthRouter(pool) {
         throw new HttpError(404, "NOT_FOUND", "Сессия не найдена");
       }
       res.status(204).send();
+    }),
+  );
+
+  router.post(
+    "/forgot-password",
+    asyncHandler(async (req, res) => {
+      const { email } = req.body || {};
+      if (!email || !emailRe.test(String(email).trim().toLowerCase())) {
+        throw new HttpError(400, "VALIDATION_ERROR", "Укажите корректный email");
+      }
+
+      const normalized = String(email).trim().toLowerCase();
+      const { rows } = await pool.query(
+        "SELECT id, email, name FROM users WHERE email = $1",
+        [normalized],
+      );
+
+      let devToken = null;
+      if (rows.length > 0) {
+        const user = rows[0];
+        const rawToken = generateRawToken();
+        const tokenHash = hashToken(rawToken);
+
+        // Invalidate previous unused reset tokens for this user
+        await pool.query(
+          "UPDATE password_resets SET used = TRUE WHERE user_id = $1 AND used = FALSE",
+          [user.id],
+        );
+
+        // Store new hashed token with expiration
+        await pool.query(
+          `INSERT INTO password_resets (user_id, token_hash, expires_at)
+           VALUES ($1, $2, NOW() + ($3 || ' minutes')::interval)`,
+          [user.id, tokenHash, String(RESET_TOKEN_TTL_MINUTES)],
+        );
+
+        const origin = req.headers.origin || "http://localhost:3000";
+        await emailService.sendPasswordResetEmail({
+          to: user.email,
+          userName: user.name,
+          resetToken: rawToken,
+          expiresInMinutes: RESET_TOKEN_TTL_MINUTES,
+          origin,
+        });
+
+        logger.info(
+          { event: "auth.forgot_password_requested", userId: user.id },
+          "forgot_password_requested",
+        );
+
+        if (process.env.NODE_ENV !== "production") {
+          devToken = rawToken;
+        }
+      } else {
+        logger.info(
+          { event: "auth.forgot_password_unknown_email", email: normalized },
+          "forgot_password_unknown_email",
+        );
+      }
+
+      // Return neutral message to avoid email enumeration
+      res.status(200).json({
+        message:
+          "Если данный email зарегистрирован в системе, на него отправлены инструкции по сбросу пароля.",
+        ...(devToken ? { devResetToken: devToken } : {}),
+      });
+    }),
+  );
+
+  router.post(
+    "/reset-password",
+    asyncHandler(async (req, res) => {
+      const { token, newPassword } = req.body || {};
+      if (!token || typeof token !== "string" || token.trim().length === 0) {
+        throw new HttpError(
+          400,
+          "VALIDATION_ERROR",
+          "Укажите ключ восстановления пароля",
+        );
+      }
+      if (!newPassword || String(newPassword).length < 8) {
+        throw new HttpError(
+          400,
+          "VALIDATION_ERROR",
+          "Новый пароль должен содержать минимум 8 символов",
+        );
+      }
+
+      const tokenHash = hashToken(token.trim());
+      const { rows } = await pool.query(
+        `SELECT pr.id AS reset_id, pr.user_id, pr.expires_at, pr.used,
+                u.email, u.name
+         FROM password_resets pr
+         JOIN users u ON u.id = pr.user_id
+         WHERE pr.token_hash = $1`,
+        [tokenHash],
+      );
+
+      if (
+        rows.length === 0 ||
+        rows[0].used ||
+        new Date(rows[0].expires_at) < new Date()
+      ) {
+        throw new HttpError(
+          400,
+          "INVALID_OR_EXPIRED_TOKEN",
+          "Временный ключ восстановления недействителен или срок его действия истёк",
+        );
+      }
+
+      const resetRecord = rows[0];
+      const passwordHash = await hashPassword(newPassword);
+
+      // Update password and reset lockout counters so user can log in immediately
+      await pool.query(
+        `UPDATE users
+         SET password_hash = $1,
+             failed_logins = 0,
+             locked_until = NULL
+         WHERE id = $2`,
+        [passwordHash, resetRecord.user_id],
+      );
+
+      // Mark token as used
+      await pool.query(
+        "UPDATE password_resets SET used = TRUE WHERE id = $1",
+        [resetRecord.reset_id],
+      );
+
+      // Invalidate all active sessions for security
+      await pool.query("DELETE FROM sessions WHERE user_id = $1", [
+        resetRecord.user_id,
+      ]);
+
+      logger.info(
+        {
+          event: "auth.password_reset_success",
+          userId: resetRecord.user_id,
+        },
+        "password_reset_success",
+      );
+
+      res.status(200).json({
+        message: "Пароль успешно изменён. Теперь вы можете войти в систему с новым паролем.",
+      });
     }),
   );
 
