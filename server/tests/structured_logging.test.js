@@ -26,7 +26,6 @@ test("Structured logger emits valid JSON with service name and ISO timestamp", (
   assert.equal(capturedLog.userId, 123);
   assert.equal(capturedLog.msg, "User logged in");
   assert.ok(typeof capturedLog.time === "string");
-  // Check ISO timestamp format YYYY-MM-DDTHH:mm:ss.sssZ
   assert.ok(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(capturedLog.time));
 });
 

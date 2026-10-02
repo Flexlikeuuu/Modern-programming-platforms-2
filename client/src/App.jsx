@@ -11,13 +11,11 @@ const ROLE_LABEL = {
 
 export default function App() {
   const [user, setUser] = useState(() => (getToken() ? getStoredUser() : null));
-
   const [rooms, setRooms] = useState([]);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [editingId, setEditingId] = useState(null);
   const [sessions, setSessions] = useState([]);
-  const [maxSessions, setMaxSessions] = useState(3);
 
   const [title, setTitle] = useState("");
   const [price, setPrice] = useState("");
@@ -40,15 +38,14 @@ export default function App() {
   useEffect(() => {
     if (!imageFile) {
       setNewImagePreview(null);
-      return undefined;
+      return;
     }
     const url = URL.createObjectURL(imageFile);
     setNewImagePreview(url);
     return () => URL.revokeObjectURL(url);
   }, [imageFile]);
 
-  const previewImageSrc =
-    newImagePreview ?? (existingImageUrl ? existingImageUrl : null);
+  const previewImageSrc = newImagePreview ?? (existingImageUrl || null);
 
   const showError = (msg) => {
     setError(msg);
@@ -77,17 +74,13 @@ export default function App() {
     try {
       const data = await api("/api/auth/sessions");
       setSessions(data.sessions);
-      setMaxSessions(data.maxSessions);
-    } catch {
-      /* ignore */
-    }
+    } catch {}
   };
 
   useEffect(() => {
-    if (!user) return undefined;
+    if (!user) return;
     fetchRooms();
     fetchSessions();
-    return undefined;
   }, [user]);
 
   const resetForm = () => {
@@ -105,12 +98,8 @@ export default function App() {
     formData.append("title", title.trim());
     formData.append("price", price);
     formData.append("description", description);
-    if (isBooked !== undefined) {
-      formData.append("is_booked", String(isBooked));
-    }
-    if (imageFile) {
-      formData.append("image", imageFile);
-    }
+    if (isBooked !== undefined) formData.append("is_booked", String(isBooked));
+    if (imageFile) formData.append("image", imageFile);
     return formData;
   };
 
@@ -118,8 +107,8 @@ export default function App() {
     e.preventDefault();
     setError("");
 
-    if (editingId) {
-      try {
+    try {
+      if (editingId) {
         const data = await api(`/api/rooms/${editingId}`, {
           method: "PUT",
           body: buildFormData(editingRoom?.is_booked ?? false),
@@ -127,20 +116,15 @@ export default function App() {
         setRooms(rooms.map((r) => (Number(r.id) === Number(editingId) ? data : r)));
         showSuccess("Номер успешно обновлён");
         resetForm();
-      } catch (err) {
-        showError(err.message);
+      } else {
+        const data = await api("/api/rooms", {
+          method: "POST",
+          body: buildFormData(),
+        });
+        setRooms([data, ...rooms]);
+        showSuccess("Номер успешно добавлен");
+        resetForm();
       }
-      return;
-    }
-
-    try {
-      const data = await api("/api/rooms", {
-        method: "POST",
-        body: buildFormData(),
-      });
-      setRooms([data, ...rooms]);
-      showSuccess("Номер успешно добавлен");
-      resetForm();
     } catch (err) {
       showError(err.message);
     }
@@ -164,9 +148,7 @@ export default function App() {
     try {
       await api(`/api/rooms/${id}`, { method: "DELETE" });
       setRooms(rooms.filter((r) => Number(r.id) !== Number(id)));
-      if (Number(editingId) === Number(id)) {
-        resetForm();
-      }
+      if (Number(editingId) === Number(id)) resetForm();
       showSuccess("Номер удалён");
     } catch (err) {
       showError(err.message);
@@ -189,9 +171,7 @@ export default function App() {
   const logout = async () => {
     try {
       await api("/api/auth/logout", { method: "POST" });
-    } catch {
-      /* already expired */
-    }
+    } catch {}
     clearSession();
     setUser(null);
     setRooms([]);
@@ -210,9 +190,7 @@ export default function App() {
   const logoutAll = async () => {
     try {
       await api("/api/auth/logout-all", { method: "POST" });
-    } catch {
-      /* ignore */
-    }
+    } catch {}
     clearSession();
     setUser(null);
   };
@@ -280,10 +258,7 @@ export default function App() {
       <main className="main">
         <div className={`layout${canManage ? "" : " layout--guest"}`}>
           {canManage && (
-            <aside
-              ref={formRef}
-              className={`form-panel${editingId ? " form-panel--editing" : ""}`}
-            >
+            <aside ref={formRef} className={`form-panel${editingId ? " form-panel--editing" : ""}`}>
               <h2>{editingId ? "Редактировать номер" : "Новый номер"}</h2>
               {editingId && editingRoom && (
                 <p className="form-edit-hint">Редактируется: «{editingRoom.title}»</p>
@@ -333,11 +308,7 @@ export default function App() {
                       <span className="image-preview-label">
                         {imageFile ? "Новое фото" : "Текущее фото"}
                       </span>
-                      <img
-                        src={previewImageSrc}
-                        alt="Предпросмотр"
-                        className="image-preview"
-                      />
+                      <img src={previewImageSrc} alt="Предпросмотр" className="image-preview" />
                     </>
                   )}
                   <input
@@ -413,9 +384,7 @@ export default function App() {
                         {Number(room.price).toLocaleString("ru-RU")} ₽
                         <span> / ночь</span>
                       </p>
-                      {room.description && (
-                        <p className="room-description">{room.description}</p>
-                      )}
+                      {room.description && <p className="room-description">{room.description}</p>}
                       <div className="room-actions">
                         <button
                           type="button"
@@ -430,9 +399,7 @@ export default function App() {
                             className="btn btn-sm btn-edit"
                             onClick={() => startEdit(room)}
                           >
-                            {Number(editingId) === Number(room.id)
-                              ? "Редактируется…"
-                              : "Изменить"}
+                            {Number(editingId) === Number(room.id) ? "Редактируется…" : "Изменить"}
                           </button>
                         )}
                         {canDelete && (

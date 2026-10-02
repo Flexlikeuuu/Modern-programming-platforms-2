@@ -28,7 +28,7 @@ test("Token hashing: hashToken creates SHA-256 digests for session storage", () 
   const hash2 = hashToken(token);
 
   assert.equal(hash1, hash2);
-  assert.equal(hash1.length, 64); // SHA-256 hex length
+  assert.equal(hash1.length, 64);
   assert.notEqual(hash1, token);
 });
 
@@ -66,7 +66,6 @@ test("Brute-force protection: account lockout threshold logic", () => {
   assert.equal(isLocked, true);
   assert.ok(lockUntil > new Date());
 
-  // Successful login resets counters
   failedLogins = 0;
   isLocked = false;
   lockUntil = null;
@@ -83,10 +82,9 @@ test("Active session control: enforces MAX_SESSIONS and calculates evictions", (
     { id: 3, createdAt: new Date(Date.now() - 10000) },
   ];
 
-  // Adding 1 new session when 3 exist: overflow = 3 - (3 - 1) = 1
   const overflow = existingSessions.length - (MAX_SESSIONS - 1);
   assert.equal(overflow, 1);
 
   const evictedIds = existingSessions.slice(0, overflow).map((s) => s.id);
-  assert.deepEqual(evictedIds, [1]); // The oldest session (id: 1) is evicted
+  assert.deepEqual(evictedIds, [1]);
 });

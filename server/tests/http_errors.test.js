@@ -7,7 +7,6 @@ import {
   notFoundHandler,
 } from "../lib/errors.js";
 
-// Mock logger that doesn't output to stdout during tests
 const mockLogger = {
   warn: () => {},
   error: () => {},

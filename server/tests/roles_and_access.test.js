@@ -23,17 +23,14 @@ test("canAccess enforces role-based access rules", () => {
   const manageRoles = [ROLES.MANAGER, ROLES.ADMIN];
   const adminOnly = [ROLES.ADMIN];
 
-  // Guest can read and book, but cannot manage or delete
   assert.equal(canAccess(ROLES.GUEST, readRoles), true);
   assert.equal(canAccess(ROLES.GUEST, manageRoles), false);
   assert.equal(canAccess(ROLES.GUEST, adminOnly), false);
 
-  // Manager can read, book, create, edit, but cannot delete
   assert.equal(canAccess(ROLES.MANAGER, readRoles), true);
   assert.equal(canAccess(ROLES.MANAGER, manageRoles), true);
   assert.equal(canAccess(ROLES.MANAGER, adminOnly), false);
 
-  // Admin can do all operations
   assert.equal(canAccess(ROLES.ADMIN, readRoles), true);
   assert.equal(canAccess(ROLES.ADMIN, manageRoles), true);
   assert.equal(canAccess(ROLES.ADMIN, adminOnly), true);

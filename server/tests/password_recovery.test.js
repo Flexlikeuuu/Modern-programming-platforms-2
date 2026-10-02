@@ -41,8 +41,8 @@ test("Password reset token expiration check logic", () => {
   const isTokenValid = (expiresAt, used) => !used && new Date(expiresAt) > new Date();
 
   assert.equal(isTokenValid(validExpiration, false), true);
-  assert.equal(isTokenValid(validExpiration, true), false); // already used
-  assert.equal(isTokenValid(expiredExpiration, false), false); // expired
+  assert.equal(isTokenValid(validExpiration, true), false);
+  assert.equal(isTokenValid(expiredExpiration, false), false);
 });
 
 test("Password reset updates password hash and clears lockout", async () => {
@@ -58,7 +58,6 @@ test("Password reset updates password hash and clears lockout", async () => {
 
   assert.equal(await comparePassword(oldPassword, user.password_hash), true);
 
-  // Apply reset
   user.password_hash = await hashPassword(newPassword);
   user.failed_logins = 0;
   user.locked_until = null;

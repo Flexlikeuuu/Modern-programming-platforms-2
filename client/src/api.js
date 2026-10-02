@@ -1,44 +1,31 @@
 const TOKEN_KEY = "accessToken";
 const USER_KEY = "authUser";
 
-export function getToken() {
-  return localStorage.getItem(TOKEN_KEY);
-}
+export const getToken = () => localStorage.getItem(TOKEN_KEY);
 
-export function getStoredUser() {
+export const getStoredUser = () => {
   try {
     return JSON.parse(localStorage.getItem(USER_KEY) || "null");
   } catch {
     return null;
   }
-}
+};
 
-export function saveSession({ accessToken, user }) {
+export const saveSession = ({ accessToken, user }) => {
   localStorage.setItem(TOKEN_KEY, accessToken);
   localStorage.setItem(USER_KEY, JSON.stringify(user));
-}
+};
 
-export function clearSession() {
+export const clearSession = () => {
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(USER_KEY);
-}
-
-function errorMessage(data, fallback) {
-  if (data?.error?.message) return data.error.message;
-  if (typeof data?.error === "string") return data.error;
-  if (data?.message) return data.message;
-  return fallback;
-}
+};
 
 export async function api(path, options = {}) {
   const headers = { ...(options.headers || {}) };
   const token = getToken();
-  if (token) {
-    headers.Authorization = `Bearer ${token}`;
-  }
-  if (options.json) {
-    headers["Content-Type"] = "application/json";
-  }
+  if (token) headers.Authorization = `Bearer ${token}`;
+  if (options.json) headers["Content-Type"] = "application/json";
 
   const res = await fetch(path, {
     ...options,
@@ -56,12 +43,11 @@ export async function api(path, options = {}) {
     }
   }
 
-  if (res.status === 401) {
-    clearSession();
-  }
+  if (res.status === 401) clearSession();
 
   if (!res.ok) {
-    const err = new Error(errorMessage(data, "Ошибка запроса"));
+    const message = data?.error?.message || (typeof data?.error === "string" ? data.error : data?.message) || "Ошибка запроса";
+    const err = new Error(message);
     err.status = res.status;
     err.code = data?.error?.code;
     throw err;

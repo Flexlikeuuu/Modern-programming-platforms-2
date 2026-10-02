@@ -8,7 +8,7 @@ const DEMO = [
 ];
 
 export default function AuthPage({ onAuthed }) {
-  const [mode, setMode] = useState("login"); // "login" | "register" | "forgot" | "reset"
+  const [mode, setMode] = useState("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -19,16 +19,10 @@ export default function AuthPage({ onAuthed }) {
   const [successMsg, setSuccessMsg] = useState("");
 
   const title = useMemo(() => {
-    switch (mode) {
-      case "register":
-        return "Создать аккаунт";
-      case "forgot":
-        return "Восстановление доступа";
-      case "reset":
-        return "Установка нового пароля";
-      default:
-        return "Вход в систему";
-    }
+    if (mode === "register") return "Создать аккаунт";
+    if (mode === "forgot") return "Восстановление доступа";
+    if (mode === "reset") return "Установка нового пароля";
+    return "Вход в систему";
   }, [mode]);
 
   const switchMode = (nextMode) => {
@@ -44,21 +38,10 @@ export default function AuthPage({ onAuthed }) {
     setBusy(true);
 
     try {
-      if (mode === "login") {
-        const data = await api("/api/auth/login", {
-          method: "POST",
-          json: { email, password },
-        });
-        saveSession(data);
-        onAuthed(data.user);
-        return;
-      }
-
-      if (mode === "register") {
-        const data = await api("/api/auth/register", {
-          method: "POST",
-          json: { email, password, name },
-        });
+      if (mode === "login" || mode === "register") {
+        const path = mode === "login" ? "/api/auth/login" : "/api/auth/register";
+        const json = mode === "login" ? { email, password } : { email, password, name };
+        const data = await api(path, { method: "POST", json });
         saveSession(data);
         onAuthed(data.user);
         return;
@@ -69,13 +52,8 @@ export default function AuthPage({ onAuthed }) {
           method: "POST",
           json: { email },
         });
-        setSuccessMsg(
-          data.message ||
-            "Инструкции по восстановлению пароля отправлены на ваш email.",
-        );
-        if (data.devResetToken) {
-          setResetToken(data.devResetToken);
-        }
+        setSuccessMsg(data.message || "Инструкции по восстановлению пароля отправлены на ваш email.");
+        if (data.devResetToken) setResetToken(data.devResetToken);
         setMode("reset");
         return;
       }
@@ -90,7 +68,6 @@ export default function AuthPage({ onAuthed }) {
         setNewPassword("");
         setResetToken("");
         setMode("login");
-        return;
       }
     } catch (err) {
       setError(err.message);
@@ -108,7 +85,7 @@ export default function AuthPage({ onAuthed }) {
         </section>
 
         <section className="auth-card">
-          {(mode === "login" || mode === "register") ? (
+          {mode === "login" || mode === "register" ? (
             <div className="auth-tabs">
               <button
                 type="button"
@@ -127,11 +104,7 @@ export default function AuthPage({ onAuthed }) {
             </div>
           ) : (
             <div className="auth-tabs">
-              <button
-                type="button"
-                className="active"
-                onClick={() => switchMode("login")}
-              >
+              <button type="button" className="active" onClick={() => switchMode("login")}>
                 ← Вернуться ко входу
               </button>
             </div>
