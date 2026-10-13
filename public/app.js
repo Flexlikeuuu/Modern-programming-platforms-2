@@ -6,6 +6,13 @@ let reconnectTimer = null;
 let gridState = {};
 let offlineQueue = [];
 let hoveredCoords = null;
+let cooldownInterval = null;
+
+let playerId = sessionStorage.getItem('pixel_player_id');
+if (!playerId) {
+  playerId = 'p_' + Math.random().toString(36).slice(2, 9) + Date.now().toString(36);
+  sessionStorage.setItem('pixel_player_id', playerId);
+}
 
 const statusIndicator = document.getElementById('status-indicator');
 const statusText = document.getElementById('status-text');
@@ -16,21 +23,18 @@ const playerNameInput = document.getElementById('player-name');
 const paletteEl = document.getElementById('palette');
 const customColorInput = document.getElementById('custom-color');
 const queueIndicator = document.getElementById('queue-indicator');
-const simulateConflictBtn = document.getElementById('simulate-conflict-btn');
+const cooldownTimerEl = document.getElementById('cooldown-timer');
 const resetGridBtn = document.getElementById('reset-grid-btn');
 const cellHoverInfo = document.getElementById('cell-hover-info');
 const leaderboardEl = document.getElementById('leaderboard');
 const logListEl = document.getElementById('log-list');
 
-const savedName = localStorage.getItem('pixel_player_name');
+const savedName = sessionStorage.getItem('pixel_player_name');
 if (savedName) {
   playerNameInput.value = savedName;
-} else {
-  playerNameInput.value = 'Игрок ' + Math.floor(100 + Math.random() * 900);
-  localStorage.setItem('pixel_player_name', playerNameInput.value);
 }
 
-let selectedColor = localStorage.getItem('pixel_color') || '#e63946';
+let selectedColor = sessionStorage.getItem('pixel_color') || '#e63946';
 customColorInput.value = selectedColor;
 
 function initPalette() {
@@ -47,19 +51,19 @@ function initPalette() {
       swatch.classList.add('selected');
       selectedColor = swatch.dataset.color;
       customColorInput.value = selectedColor;
-      localStorage.setItem('pixel_color', selectedColor);
+      sessionStorage.setItem('pixel_color', selectedColor);
     });
   });
 
   customColorInput.addEventListener('input', (e) => {
     selectedColor = e.target.value;
     swatches.forEach(s => s.classList.remove('selected'));
-    localStorage.setItem('pixel_color', selectedColor);
+    sessionStorage.setItem('pixel_color', selectedColor);
   });
 }
 
-playerNameInput.addEventListener('change', () => {
-  localStorage.setItem('pixel_player_name', playerNameInput.value.trim() || 'Аноним');
+playerNameInput.addEventListener('input', () => {
+  sessionStorage.setItem('pixel_player_name', playerNameInput.value.trim() || 'Аноним');
 });
 
 function loadLocalQueue() {
@@ -85,6 +89,49 @@ function updateQueueIndicator() {
     queueIndicator.classList.remove('hidden');
   } else {
     queueIndicator.classList.add('hidden');
+  }
+}
+
+function getRemainingCooldown() {
+  const until = parseInt(sessionStorage.getItem('pixel_cooldown_until') || '0', 10);
+  const diff = until - Date.now();
+  return diff > 0 ? Math.ceil(diff / 1000) : 0;
+}
+
+function startCooldown(seconds) {
+  const until = Date.now() + seconds * 1000;
+  sessionStorage.setItem('pixel_cooldown_until', until.toString());
+  updateCooldownUI();
+
+  clearInterval(cooldownInterval);
+  cooldownInterval = setInterval(() => {
+    const rem = getRemainingCooldown();
+    if (rem <= 0) {
+      clearInterval(cooldownInterval);
+      sessionStorage.removeItem('pixel_cooldown_until');
+      updateCooldownUI();
+    } else {
+      cooldownTimerEl.textContent = `КД: ${rem}с`;
+    }
+  }, 500);
+}
+
+function updateCooldownUI() {
+  const rem = getRemainingCooldown();
+  if (rem > 0) {
+    cooldownTimerEl.textContent = `КД: ${rem}с`;
+    cooldownTimerEl.classList.remove('hidden');
+    gridEl.classList.add('on-cooldown');
+  } else {
+    cooldownTimerEl.classList.add('hidden');
+    gridEl.classList.remove('on-cooldown');
+  }
+}
+
+function checkInitialCooldown() {
+  const rem = getRemainingCooldown();
+  if (rem > 0) {
+    startCooldown(rem);
   }
 }
 
@@ -234,6 +281,12 @@ function escapeHtml(str) {
 }
 
 function onCellClicked(x, y) {
+  const rem = getRemainingCooldown();
+  if (rem > 0) {
+    showBanner(`Кулдаун активен! Подождите ${rem} сек.`, 'conflict', 2500);
+    return;
+  }
+
   const key = `${x},${y}`;
   const cell = gridState[key] || { version: 0 };
   const playerName = playerNameInput.value.trim() || 'Аноним';
@@ -244,7 +297,8 @@ function onCellClicked(x, y) {
     y,
     color: selectedColor,
     expectedVersion: cell.version || 0,
-    playerName
+    playerName,
+    playerId
   };
 
   if (socket && socket.readyState === WebSocket.OPEN) {
@@ -252,8 +306,9 @@ function onCellClicked(x, y) {
   } else {
     offlineQueue.push(action);
     saveLocalQueue();
+    startCooldown(30);
     renderCell(x, y, { color: selectedColor }, true);
-    showBanner(`Офлайн-режим: действие для ячейки (${x + 1}, ${y + 1}) сохранено в локальной очереди`, 'offline');
+    showBanner(`Офлайн-режим: действие сохранено в очереди`, 'offline');
   }
 }
 
@@ -281,7 +336,8 @@ function connectWebSocket() {
       showBanner(`Синхронизация ${offlineQueue.length} офлайн-действий...`, 'info', 0);
       socket.send(JSON.stringify({
         type: 'sync_queue',
-        actions: offlineQueue
+        actions: offlineQueue,
+        playerId
       }));
     } else {
       hideBanner();
@@ -316,6 +372,11 @@ function scheduleReconnect() {
 
 function handleServerMessage(data) {
   if (data.type === 'init') {
+    if (!sessionStorage.getItem('pixel_player_name') && data.assignedName) {
+      playerNameInput.value = data.assignedName;
+      sessionStorage.setItem('pixel_player_name', data.assignedName);
+    }
+
     gridState = data.state.grid || {};
     localStorage.setItem('pixel_cached_grid', JSON.stringify(gridState));
     renderFullGrid();
@@ -328,6 +389,15 @@ function handleServerMessage(data) {
 
   if (data.type === 'online_count') {
     onlineCountEl.textContent = `Игроков: ${data.onlineCount}`;
+  }
+
+  if (data.type === 'cooldown_started') {
+    startCooldown(data.seconds || 30);
+  }
+
+  if (data.type === 'cooldown_error') {
+    startCooldown(data.remaining || 30);
+    showBanner(`Кулдаун! Подождите ещё ${data.remaining} сек.`, 'conflict', 3000);
   }
 
   if (data.type === 'cell_updated') {
@@ -400,27 +470,6 @@ function handleServerMessage(data) {
   }
 }
 
-simulateConflictBtn.addEventListener('click', () => {
-  const targetX = 0;
-  const targetY = 0;
-  const playerName = playerNameInput.value.trim() || 'Аноним';
-
-  const badAction = {
-    type: 'claim_cell',
-    x: targetX,
-    y: targetY,
-    color: selectedColor,
-    expectedVersion: -999,
-    playerName
-  };
-
-  if (socket && socket.readyState === WebSocket.OPEN) {
-    socket.send(JSON.stringify(badAction));
-  } else {
-    showBanner('Для теста конфликта необходимо активное подключение к серверу', 'offline', 3000);
-  }
-});
-
 resetGridBtn.addEventListener('click', () => {
   if (confirm('Сбросить состояние всего игрового поля?')) {
     const playerName = playerNameInput.value.trim() || 'Аноним';
@@ -454,4 +503,5 @@ createGridDOM();
 initCachedState();
 loadLocalQueue();
 renderFullGrid();
+checkInitialCooldown();
 connectWebSocket();

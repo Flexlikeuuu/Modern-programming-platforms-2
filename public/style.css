@@ -39,11 +39,6 @@ body {
   color: #0f172a;
 }
 
-.subtitle {
-  font-size: 0.8rem;
-  color: #64748b;
-}
-
 .connection-status {
   display: flex;
   align-items: center;
@@ -190,6 +185,28 @@ body {
   gap: 10px;
 }
 
+.cooldown-badge {
+  background: #3b82f6;
+  color: #ffffff;
+  font-size: 0.85rem;
+  font-weight: 700;
+  padding: 6px 12px;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  animation: pulseCooldown 1s infinite alternate;
+}
+
+.cooldown-badge.hidden {
+  display: none;
+}
+
+@keyframes pulseCooldown {
+  0% { transform: scale(1); opacity: 1; }
+  100% { transform: scale(1.04); opacity: 0.85; }
+}
+
 .queue-badge {
   background: #f59e0b;
   color: #ffffff;
@@ -211,15 +228,6 @@ body {
   font-weight: 600;
   cursor: pointer;
   transition: background-color 0.15s, opacity 0.15s;
-}
-
-.btn-warning {
-  background-color: #f59e0b;
-  color: #ffffff;
-}
-
-.btn-warning:hover {
-  background-color: #d97706;
 }
 
 .btn-danger {
@@ -275,6 +283,12 @@ body {
   padding: 2px;
   border-radius: 6px;
   user-select: none;
+  transition: opacity 0.2s;
+}
+
+.grid-board.on-cooldown {
+  opacity: 0.75;
+  cursor: not-allowed;
 }
 
 .cell {
@@ -289,6 +303,15 @@ body {
   filter: brightness(0.9);
   transform: scale(1.05);
   z-index: 2;
+}
+
+.grid-board.on-cooldown .cell {
+  cursor: not-allowed;
+}
+
+.grid-board.on-cooldown .cell:hover {
+  transform: none;
+  filter: none;
 }
 
 .cell.offline-pending {

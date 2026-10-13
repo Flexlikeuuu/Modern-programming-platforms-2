@@ -10,6 +10,10 @@ const PUBLIC_DIR = path.join(__dirname, 'public');
 
 const GRID_WIDTH = 20;
 const GRID_HEIGHT = 20;
+const COOLDOWN_MS = 30000;
+
+const cooldowns = new Map();
+let playerCounter = 1;
 
 function createInitialState() {
   const grid = {};
@@ -140,10 +144,13 @@ function getOnlineCount() {
 }
 
 wss.on('connection', (ws) => {
+  const assignedName = `Игрок ${playerCounter++}`;
+
   ws.send(JSON.stringify({
     type: 'init',
     state: gameState,
-    onlineCount: getOnlineCount()
+    onlineCount: getOnlineCount(),
+    assignedName
   }));
 
   broadcast({
@@ -156,10 +163,21 @@ wss.on('connection', (ws) => {
       const data = JSON.parse(message);
 
       if (data.type === 'claim_cell') {
-        const { x, y, color, expectedVersion, playerName } = data;
+        const { x, y, color, expectedVersion, playerName, playerId } = data;
         const key = `${x},${y}`;
 
         if (x < 0 || x >= GRID_WIDTH || y < 0 || y >= GRID_HEIGHT) {
+          return;
+        }
+
+        const now = Date.now();
+        const lastAction = cooldowns.get(playerId) || 0;
+        if (now - lastAction < COOLDOWN_MS) {
+          const remaining = Math.ceil((COOLDOWN_MS - (now - lastAction)) / 1000);
+          ws.send(JSON.stringify({
+            type: 'cooldown_error',
+            remaining
+          }));
           return;
         }
 
@@ -190,15 +208,22 @@ wss.on('connection', (ws) => {
           return;
         }
 
+        cooldowns.set(playerId, now);
+
         currentCell.color = color;
         currentCell.owner = playerName || 'Аноним';
         currentCell.version = (currentCell.version || 0) + 1;
-        currentCell.updatedAt = Date.now();
+        currentCell.updatedAt = now;
         gameState.grid[key] = currentCell;
 
         recalculateScores();
         const log = addLog(`${currentCell.owner} захватил ячейку (${x + 1}, ${y + 1})`, 'claim');
         saveState(gameState);
+
+        ws.send(JSON.stringify({
+          type: 'cooldown_started',
+          seconds: 30
+        }));
 
         broadcast({
           type: 'cell_updated',
@@ -213,6 +238,10 @@ wss.on('connection', (ws) => {
       if (data.type === 'sync_queue') {
         const actions = Array.isArray(data.actions) ? data.actions : [];
         const results = [];
+        const playerId = data.playerId;
+        const now = Date.now();
+
+        let appliedAny = false;
 
         for (const action of actions) {
           const { x, y, color, expectedVersion, playerName } = action;
@@ -225,11 +254,12 @@ wss.on('connection', (ws) => {
             currentCell.color = color;
             currentCell.owner = playerName || 'Аноним';
             currentCell.version = (currentCell.version || 0) + 1;
-            currentCell.updatedAt = Date.now();
+            currentCell.updatedAt = now;
             gameState.grid[key] = currentCell;
 
             const log = addLog(`${currentCell.owner} применил офлайн-действие (${x + 1}, ${y + 1})`, 'claim');
             results.push({ x, y, status: 'applied', cell: currentCell });
+            appliedAny = true;
 
             broadcast({
               type: 'cell_updated',
@@ -247,6 +277,14 @@ wss.on('connection', (ws) => {
               log
             });
           }
+        }
+
+        if (appliedAny && playerId) {
+          cooldowns.set(playerId, now);
+          ws.send(JSON.stringify({
+            type: 'cooldown_started',
+            seconds: 30
+          }));
         }
 
         recalculateScores();

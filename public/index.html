@@ -11,7 +11,6 @@
     <header class="app-header">
       <div class="logo-area">
         <h1>Pixel Battle</h1>
-        <span class="subtitle">Лабораторная работа: WebSockets & Конкурентный доступ</span>
       </div>
       <div class="connection-status">
         <span id="status-indicator" class="status-dot connecting"></span>
@@ -44,8 +43,8 @@
       </div>
 
       <div class="tool-actions">
+        <span id="cooldown-timer" class="cooldown-badge hidden">КД: 30с</span>
         <span id="queue-indicator" class="queue-badge hidden">Офлайн-очередь: 0</span>
-        <button id="simulate-conflict-btn" class="btn btn-warning" type="button" title="Отправить клик с устаревшей версией ячейки">Тест конфликта</button>
         <button id="reset-grid-btn" class="btn btn-danger" type="button">Сбросить поле</button>
       </div>
     </div>
