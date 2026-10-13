@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: spp-lab4-pixel-battle
+    env: node
+    plan: free
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: PORT
+        value: 3000

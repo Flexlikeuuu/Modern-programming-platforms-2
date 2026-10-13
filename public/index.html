@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pixel Battle - Realtime Multiplayer</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app-container">
+    <header class="app-header">
+      <div class="logo-area">
+        <h1>Pixel Battle</h1>
+        <span class="subtitle">Лабораторная работа: WebSockets & Конкурентный доступ</span>
+      </div>
+      <div class="connection-status">
+        <span id="status-indicator" class="status-dot connecting"></span>
+        <span id="status-text">Подключение...</span>
+        <span class="badge" id="online-count">Игроков: 0</span>
+      </div>
+    </header>
+
+    <div class="banner hidden" id="notification-banner"></div>
+
+    <div class="toolbar">
+      <div class="tool-group">
+        <label for="player-name">Игрок:</label>
+        <input type="text" id="player-name" maxlength="15" value="Игрок 1">
+      </div>
+
+      <div class="tool-group">
+        <label>Цвет:</label>
+        <div class="palette" id="palette">
+          <button type="button" class="color-swatch selected" style="background:#e63946" data-color="#e63946"></button>
+          <button type="button" class="color-swatch" style="background:#1d3557" data-color="#1d3557"></button>
+          <button type="button" class="color-swatch" style="background:#2a9d8f" data-color="#2a9d8f"></button>
+          <button type="button" class="color-swatch" style="background:#e76f51" data-color="#e76f51"></button>
+          <button type="button" class="color-swatch" style="background:#f4a261" data-color="#f4a261"></button>
+          <button type="button" class="color-swatch" style="background:#9b5de5" data-color="#9b5de5"></button>
+          <button type="button" class="color-swatch" style="background:#00bbf9" data-color="#00bbf9"></button>
+          <button type="button" class="color-swatch" style="background:#333333" data-color="#333333"></button>
+        </div>
+        <input type="color" id="custom-color" value="#e63946" title="Свой цвет">
+      </div>
+
+      <div class="tool-actions">
+        <span id="queue-indicator" class="queue-badge hidden">Офлайн-очередь: 0</span>
+        <button id="simulate-conflict-btn" class="btn btn-warning" type="button" title="Отправить клик с устаревшей версией ячейки">Тест конфликта</button>
+        <button id="reset-grid-btn" class="btn btn-danger" type="button">Сбросить поле</button>
+      </div>
+    </div>
+
+    <main class="main-layout">
+      <div class="board-wrapper">
+        <div class="board-info">
+          <span>Сетка: 20x20</span>
+          <span id="cell-hover-info">Наведите на ячейку</span>
+        </div>
+        <div id="grid" class="grid-board"></div>
+      </div>
+
+      <aside class="sidebar">
+        <div class="panel">
+          <h3>Рейтинг игроков</h3>
+          <div id="leaderboard" class="leaderboard-list">
+            <div class="empty-state">Нет данных</div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h3>Журнал событий</h3>
+          <div id="log-list" class="log-list"></div>
+        </div>
+      </aside>
+    </main>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
