@@ -1,5 +1,6 @@
 const GRID_WIDTH = 20;
 const GRID_HEIGHT = 20;
+const DEFAULT_COOLDOWN_SECONDS = 5;
 
 let socket = null;
 let reconnectTimer = null;
@@ -29,9 +30,9 @@ const cellHoverInfo = document.getElementById('cell-hover-info');
 const leaderboardEl = document.getElementById('leaderboard');
 const logListEl = document.getElementById('log-list');
 
-const savedName = sessionStorage.getItem('pixel_player_name');
-if (savedName) {
-  playerNameInput.value = savedName;
+let currentName = sessionStorage.getItem('pixel_player_name') || '';
+if (currentName) {
+  playerNameInput.value = currentName;
 }
 
 let selectedColor = sessionStorage.getItem('pixel_color') || '#e63946';
@@ -62,8 +63,35 @@ function initPalette() {
   });
 }
 
-playerNameInput.addEventListener('input', () => {
-  sessionStorage.setItem('pixel_player_name', playerNameInput.value.trim() || 'Аноним');
+function submitNameChange() {
+  const newName = playerNameInput.value.trim();
+  if (!newName) {
+    playerNameInput.value = currentName || 'Игрок';
+    showBanner('Имя не может быть пустым!', 'conflict', 3000);
+    return;
+  }
+  if (newName === currentName) {
+    return;
+  }
+
+  if (socket && socket.readyState === WebSocket.OPEN) {
+    socket.send(JSON.stringify({
+      type: 'change_name',
+      playerId,
+      requestedName: newName
+    }));
+  } else {
+    currentName = newName;
+    sessionStorage.setItem('pixel_player_name', newName);
+    showBanner(`Имя сохранено локально: "${newName}"`, 'info', 3000);
+  }
+}
+
+playerNameInput.addEventListener('change', submitNameChange);
+playerNameInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    playerNameInput.blur();
+  }
 });
 
 function loadLocalQueue() {
@@ -287,9 +315,13 @@ function onCellClicked(x, y) {
     return;
   }
 
+  if (playerNameInput.value.trim() && playerNameInput.value.trim() !== currentName) {
+    submitNameChange();
+  }
+
   const key = `${x},${y}`;
   const cell = gridState[key] || { version: 0 };
-  const playerName = playerNameInput.value.trim() || 'Аноним';
+  const effectivePlayerName = currentName || playerNameInput.value.trim() || 'Аноним';
 
   const action = {
     type: 'claim_cell',
@@ -297,16 +329,21 @@ function onCellClicked(x, y) {
     y,
     color: selectedColor,
     expectedVersion: cell.version || 0,
-    playerName,
+    playerName: effectivePlayerName,
     playerId
   };
 
   if (socket && socket.readyState === WebSocket.OPEN) {
     socket.send(JSON.stringify(action));
   } else {
-    offlineQueue.push(action);
+    const existingIndex = offlineQueue.findIndex(a => a.x === x && a.y === y);
+    if (existingIndex !== -1) {
+      offlineQueue[existingIndex] = action;
+    } else {
+      offlineQueue.push(action);
+    }
     saveLocalQueue();
-    startCooldown(30);
+    startCooldown(DEFAULT_COOLDOWN_SECONDS);
     renderCell(x, y, { color: selectedColor }, true);
     showBanner(`Офлайн-режим: действие сохранено в очереди`, 'offline');
   }
@@ -332,12 +369,19 @@ function connectWebSocket() {
     statusIndicator.className = 'status-dot online';
     statusText.textContent = 'В сети';
 
+    socket.send(JSON.stringify({
+      type: 'init_player',
+      playerId,
+      requestedName: currentName || null
+    }));
+
     if (offlineQueue.length > 0) {
       showBanner(`Синхронизация ${offlineQueue.length} офлайн-действий...`, 'info', 0);
       socket.send(JSON.stringify({
         type: 'sync_queue',
         actions: offlineQueue,
-        playerId
+        playerId,
+        playerName: currentName
       }));
     } else {
       hideBanner();
@@ -372,7 +416,8 @@ function scheduleReconnect() {
 
 function handleServerMessage(data) {
   if (data.type === 'init') {
-    if (!sessionStorage.getItem('pixel_player_name') && data.assignedName) {
+    if (!currentName && data.assignedName) {
+      currentName = data.assignedName;
       playerNameInput.value = data.assignedName;
       sessionStorage.setItem('pixel_player_name', data.assignedName);
     }
@@ -387,16 +432,41 @@ function handleServerMessage(data) {
     }
   }
 
+  if (data.type === 'name_assigned') {
+    currentName = data.playerName;
+    playerNameInput.value = data.playerName;
+    sessionStorage.setItem('pixel_player_name', data.playerName);
+    if (data.wasConflict && data.message) {
+      showBanner(data.message, 'conflict', 5000);
+    }
+  }
+
+  if (data.type === 'name_success') {
+    currentName = data.playerName;
+    playerNameInput.value = data.playerName;
+    sessionStorage.setItem('pixel_player_name', data.playerName);
+    showBanner(`Имя успешно изменено на "${data.playerName}"`, 'success', 3000);
+  }
+
+  if (data.type === 'name_error') {
+    if (data.currentName) {
+      currentName = data.currentName;
+      playerNameInput.value = data.currentName;
+      sessionStorage.setItem('pixel_player_name', data.currentName);
+    }
+    showBanner(data.message || 'Имя уже занято другим игроком!', 'conflict', 4000);
+  }
+
   if (data.type === 'online_count') {
     onlineCountEl.textContent = `Игроков: ${data.onlineCount}`;
   }
 
   if (data.type === 'cooldown_started') {
-    startCooldown(data.seconds || 30);
+    startCooldown(data.seconds || DEFAULT_COOLDOWN_SECONDS);
   }
 
   if (data.type === 'cooldown_error') {
-    startCooldown(data.remaining || 30);
+    startCooldown(data.remaining || DEFAULT_COOLDOWN_SECONDS);
     showBanner(`Кулдаун! Подождите ещё ${data.remaining} сек.`, 'conflict', 3000);
   }
 
@@ -472,7 +542,7 @@ function handleServerMessage(data) {
 
 resetGridBtn.addEventListener('click', () => {
   if (confirm('Сбросить состояние всего игрового поля?')) {
-    const playerName = playerNameInput.value.trim() || 'Аноним';
+    const playerName = currentName || playerNameInput.value.trim() || 'Аноним';
     if (socket && socket.readyState === WebSocket.OPEN) {
       socket.send(JSON.stringify({ type: 'reset_grid', playerName }));
     }

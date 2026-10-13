@@ -10,10 +10,10 @@ const PUBLIC_DIR = path.join(__dirname, 'public');
 
 const GRID_WIDTH = 20;
 const GRID_HEIGHT = 20;
-const COOLDOWN_MS = 30000;
+const COOLDOWN_SECONDS = 5;
+const COOLDOWN_MS = COOLDOWN_SECONDS * 1000;
 
 const cooldowns = new Map();
-let playerCounter = 1;
 
 function createInitialState() {
   const grid = {};
@@ -143,14 +143,45 @@ function getOnlineCount() {
   return count;
 }
 
+function isNameTaken(name, excludeWs = null, excludePlayerId = null) {
+  if (!name || typeof name !== 'string') return true;
+  const normalized = name.trim().toLowerCase();
+  if (normalized.length === 0) return true;
+
+  for (const client of wss.clients) {
+    if (client.readyState === WebSocket.OPEN && client !== excludeWs) {
+      if (excludePlayerId && client.playerId === excludePlayerId) {
+        continue;
+      }
+      if (client.playerName && client.playerName.trim().toLowerCase() === normalized) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+function generateUniqueName(prefix = 'Игрок', excludeWs = null, excludePlayerId = null) {
+  let counter = 1;
+  while (
+    isNameTaken(`${prefix} ${counter}`, excludeWs, excludePlayerId) ||
+    (gameState && gameState.scores && gameState.scores[`${prefix} ${counter}`] > 0)
+  ) {
+    counter++;
+  }
+  return `${prefix} ${counter}`;
+}
+
 wss.on('connection', (ws) => {
-  const assignedName = `Игрок ${playerCounter++}`;
+  ws.playerId = null;
+  ws.playerName = generateUniqueName('Игрок', ws);
 
   ws.send(JSON.stringify({
     type: 'init',
     state: gameState,
     onlineCount: getOnlineCount(),
-    assignedName
+    assignedName: ws.playerName,
+    cooldownSeconds: COOLDOWN_SECONDS
   }));
 
   broadcast({
@@ -162,6 +193,78 @@ wss.on('connection', (ws) => {
     try {
       const data = JSON.parse(message);
 
+      if (data.type === 'init_player') {
+        const playerId = data.playerId;
+        const requestedName = typeof data.requestedName === 'string' ? data.requestedName.trim().slice(0, 15) : '';
+        if (playerId) {
+          ws.playerId = playerId;
+        }
+
+        if (requestedName && !isNameTaken(requestedName, ws, playerId)) {
+          ws.playerName = requestedName;
+          ws.send(JSON.stringify({
+            type: 'name_assigned',
+            playerName: requestedName,
+            wasConflict: false
+          }));
+        } else {
+          const uniqueName = generateUniqueName('Игрок', ws, playerId);
+          const wasConflict = Boolean(requestedName);
+          ws.playerName = uniqueName;
+          ws.send(JSON.stringify({
+            type: 'name_assigned',
+            playerName: uniqueName,
+            wasConflict,
+            message: wasConflict
+              ? `Имя "${requestedName}" уже занято другим игроком! Вам присвоено имя "${uniqueName}".`
+              : null
+          }));
+        }
+      }
+
+      if (data.type === 'change_name') {
+        const playerId = data.playerId;
+        if (playerId) {
+          ws.playerId = playerId;
+        }
+        const requested = typeof data.requestedName === 'string' ? data.requestedName.trim().slice(0, 15) : '';
+
+        if (!requested) {
+          ws.send(JSON.stringify({
+            type: 'name_error',
+            message: 'Имя не может быть пустым!',
+            currentName: ws.playerName
+          }));
+          return;
+        }
+
+        if (isNameTaken(requested, ws, ws.playerId)) {
+          ws.send(JSON.stringify({
+            type: 'name_error',
+            message: `Имя "${requested}" уже занято другим игроком!`,
+            currentName: ws.playerName
+          }));
+          return;
+        }
+
+        const oldName = ws.playerName;
+        ws.playerName = requested;
+        ws.send(JSON.stringify({
+          type: 'name_success',
+          playerName: requested,
+          message: `Имя успешно изменено на "${requested}"`
+        }));
+
+        if (oldName && oldName !== requested) {
+          const log = addLog(`${oldName} сменил имя на ${requested}`, 'info');
+          saveState(gameState);
+          broadcast({
+            type: 'log_entry',
+            log
+          });
+        }
+      }
+
       if (data.type === 'claim_cell') {
         const { x, y, color, expectedVersion, playerName, playerId } = data;
         const key = `${x},${y}`;
@@ -170,8 +273,31 @@ wss.on('connection', (ws) => {
           return;
         }
 
+        const effectivePlayerId = playerId || ws.playerId || (ws.playerName ? `user_${ws.playerName}` : 'anonymous');
+        ws.playerId = effectivePlayerId;
+
+        // Validate player name
+        if (playerName && typeof playerName === 'string' && playerName.trim()) {
+          const cleanName = playerName.trim().slice(0, 15);
+          if (cleanName !== ws.playerName) {
+            if (isNameTaken(cleanName, ws, ws.playerId)) {
+              ws.send(JSON.stringify({
+                type: 'name_error',
+                message: `Имя "${cleanName}" уже занято другим игроком!`,
+                currentName: ws.playerName
+              }));
+              return;
+            }
+            ws.playerName = cleanName;
+          }
+        }
+
+        if (!ws.playerName) {
+          ws.playerName = generateUniqueName('Игрок', ws, ws.playerId);
+        }
+
         const now = Date.now();
-        const lastAction = cooldowns.get(playerId) || 0;
+        const lastAction = cooldowns.get(effectivePlayerId) || 0;
         if (now - lastAction < COOLDOWN_MS) {
           const remaining = Math.ceil((COOLDOWN_MS - (now - lastAction)) / 1000);
           ws.send(JSON.stringify({
@@ -189,7 +315,7 @@ wss.on('connection', (ws) => {
         };
 
         if (currentCell.version !== expectedVersion) {
-          const log = addLog(`Конфликт! ${playerName || 'Игрок'} опоздал: ячейка (${x + 1}, ${y + 1}) уже занята ${currentCell.owner || 'кем-то'}`, 'conflict');
+          const log = addLog(`Конфликт! ${ws.playerName} опоздал: ячейка (${x + 1}, ${y + 1}) уже занята ${currentCell.owner || 'кем-то'}`, 'conflict');
           saveState(gameState);
 
           ws.send(JSON.stringify({
@@ -208,10 +334,10 @@ wss.on('connection', (ws) => {
           return;
         }
 
-        cooldowns.set(playerId, now);
+        cooldowns.set(effectivePlayerId, now);
 
         currentCell.color = color;
-        currentCell.owner = playerName || 'Аноним';
+        currentCell.owner = ws.playerName;
         currentCell.version = (currentCell.version || 0) + 1;
         currentCell.updatedAt = now;
         gameState.grid[key] = currentCell;
@@ -222,7 +348,7 @@ wss.on('connection', (ws) => {
 
         ws.send(JSON.stringify({
           type: 'cooldown_started',
-          seconds: 30
+          seconds: COOLDOWN_SECONDS
         }));
 
         broadcast({
@@ -238,13 +364,24 @@ wss.on('connection', (ws) => {
       if (data.type === 'sync_queue') {
         const actions = Array.isArray(data.actions) ? data.actions : [];
         const results = [];
-        const playerId = data.playerId;
+        const effectivePlayerId = data.playerId || ws.playerId || (ws.playerName ? `user_${ws.playerName}` : 'anonymous');
+        ws.playerId = effectivePlayerId;
         const now = Date.now();
+
+        if (data.playerName && typeof data.playerName === 'string' && data.playerName.trim()) {
+          const cleanName = data.playerName.trim().slice(0, 15);
+          if (cleanName !== ws.playerName && !isNameTaken(cleanName, ws, ws.playerId)) {
+            ws.playerName = cleanName;
+          }
+        }
+        if (!ws.playerName) {
+          ws.playerName = generateUniqueName('Игрок', ws, ws.playerId);
+        }
 
         let appliedAny = false;
 
         for (const action of actions) {
-          const { x, y, color, expectedVersion, playerName } = action;
+          const { x, y, color, expectedVersion } = action;
           const key = `${x},${y}`;
           const currentCell = gameState.grid[key];
 
@@ -252,11 +389,12 @@ wss.on('connection', (ws) => {
 
           if (currentCell.version === expectedVersion) {
             currentCell.color = color;
-            currentCell.owner = playerName || 'Аноним';
+            currentCell.owner = ws.playerName;
             currentCell.version = (currentCell.version || 0) + 1;
             currentCell.updatedAt = now;
             gameState.grid[key] = currentCell;
 
+            recalculateScores();
             const log = addLog(`${currentCell.owner} применил офлайн-действие (${x + 1}, ${y + 1})`, 'claim');
             results.push({ x, y, status: 'applied', cell: currentCell });
             appliedAny = true;
@@ -270,7 +408,7 @@ wss.on('connection', (ws) => {
               log
             }, ws);
           } else {
-            const log = addLog(`Офлайн-конфликт для ${playerName || 'Игрока'} на (${x + 1}, ${y + 1})`, 'conflict');
+            const log = addLog(`Офлайн-конфликт для ${ws.playerName} на (${x + 1}, ${y + 1})`, 'conflict');
             results.push({ x, y, status: 'conflict', cell: currentCell });
             broadcast({
               type: 'log_entry',
@@ -279,11 +417,11 @@ wss.on('connection', (ws) => {
           }
         }
 
-        if (appliedAny && playerId) {
-          cooldowns.set(playerId, now);
+        if (appliedAny) {
+          cooldowns.set(effectivePlayerId, now);
           ws.send(JSON.stringify({
             type: 'cooldown_started',
-            seconds: 30
+            seconds: COOLDOWN_SECONDS
           }));
         }
 
@@ -301,7 +439,8 @@ wss.on('connection', (ws) => {
         const fresh = createInitialState();
         gameState.grid = fresh.grid;
         gameState.scores = {};
-        const log = addLog(`${data.playerName || 'Игрок'} сбросил поле`, 'reset');
+        const actorName = ws.playerName || data.playerName || 'Игрок';
+        const log = addLog(`${actorName} сбросил поле`, 'reset');
         saveState(gameState);
 
         broadcast({
@@ -314,6 +453,8 @@ wss.on('connection', (ws) => {
   });
 
   ws.on('close', () => {
+    ws.playerName = null;
+    ws.playerId = null;
     broadcast({
       type: 'online_count',
       onlineCount: getOnlineCount()

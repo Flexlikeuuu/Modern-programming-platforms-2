@@ -117,10 +117,10 @@
       "updatedAt": 0
     },
     "19,0": {
-      "color": "#ffffff",
-      "owner": null,
-      "version": 0,
-      "updatedAt": 0
+      "color": "#9b5de5",
+      "owner": "flexlikeuuu",
+      "version": 1,
+      "updatedAt": 1791888601205
     },
     "0,1": {
       "color": "#ffffff",
@@ -525,10 +525,10 @@
       "updatedAt": 0
     },
     "7,4": {
-      "color": "#ffffff",
-      "owner": null,
-      "version": 0,
-      "updatedAt": 0
+      "color": "#00bbf9",
+      "owner": "Игрок 1",
+      "version": 1,
+      "updatedAt": 1791888556192
     },
     "8,4": {
       "color": "#ffffff",
@@ -561,10 +561,10 @@
       "updatedAt": 0
     },
     "13,4": {
-      "color": "#ffffff",
-      "owner": null,
-      "version": 0,
-      "updatedAt": 0
+      "color": "#333333",
+      "owner": "flexlikeuuu",
+      "version": 1,
+      "updatedAt": 1791888380149
     },
     "14,4": {
       "color": "#ffffff",
@@ -663,10 +663,10 @@
       "updatedAt": 0
     },
     "10,5": {
-      "color": "#ffffff",
-      "owner": null,
-      "version": 0,
-      "updatedAt": 0
+      "color": "#e76f51",
+      "owner": "moderator",
+      "version": 1,
+      "updatedAt": 1791888350799
     },
     "11,5": {
       "color": "#ffffff",
@@ -1125,10 +1125,10 @@
       "updatedAt": 0
     },
     "7,9": {
-      "color": "#ffffff",
-      "owner": null,
-      "version": 0,
-      "updatedAt": 0
+      "color": "#2a9d8f",
+      "owner": "flexlikeuuu",
+      "version": 1,
+      "updatedAt": 1791888581843
     },
     "8,9": {
       "color": "#ffffff",
@@ -1167,10 +1167,10 @@
       "updatedAt": 0
     },
     "14,9": {
-      "color": "#ffffff",
-      "owner": null,
-      "version": 0,
-      "updatedAt": 0
+      "color": "#00ff11",
+      "owner": "moderator",
+      "version": 2,
+      "updatedAt": 1791888387397
     },
     "15,9": {
       "color": "#ffffff",
@@ -2403,6 +2403,113 @@
       "updatedAt": 0
     }
   },
-  "scores": {},
-  "logs": []
+  "scores": {
+    "flexlikeuuu": 3,
+    "Игрок 1": 1,
+    "moderator": 2
+  },
+  "logs": [
+    {
+      "id": 1791888601205.3987,
+      "time": "13:50:01",
+      "text": "flexlikeuuu применил офлайн-действие (20, 1)",
+      "type": "claim"
+    },
+    {
+      "id": 1791888581843.1863,
+      "time": "13:49:41",
+      "text": "flexlikeuuu применил офлайн-действие (8, 10)",
+      "type": "claim"
+    },
+    {
+      "id": 1791888567559.3623,
+      "time": "13:49:27",
+      "text": "Офлайн-конфликт для flexlikeuuu на (8, 5)",
+      "type": "conflict"
+    },
+    {
+      "id": 1791888556192.1216,
+      "time": "13:49:16",
+      "text": "Игрок 1 захватил ячейку (8, 5)",
+      "type": "claim"
+    },
+    {
+      "id": 1791888387397.6375,
+      "time": "13:46:27",
+      "text": "moderator захватил ячейку (15, 10)",
+      "type": "claim"
+    },
+    {
+      "id": 1791888380149.6096,
+      "time": "13:46:20",
+      "text": "flexlikeuuu захватил ячейку (14, 5)",
+      "type": "claim"
+    },
+    {
+      "id": 1791888356817.8916,
+      "time": "13:45:56",
+      "text": "flexlikeuuu захватил ячейку (15, 10)",
+      "type": "claim"
+    },
+    {
+      "id": 1791888350799.7876,
+      "time": "13:45:50",
+      "text": "moderator захватил ячейку (11, 6)",
+      "type": "claim"
+    },
+    {
+      "id": 1791888348856.4368,
+      "time": "13:45:48",
+      "text": "Игрок 3 сменил имя на moderator",
+      "type": "info"
+    },
+    {
+      "id": 1791888328060.8845,
+      "time": "13:45:28",
+      "text": "Игрок 4 сменил имя на flexlikeuuu",
+      "type": "info"
+    },
+    {
+      "id": 1791888312414.1216,
+      "time": "13:45:12",
+      "text": "Игрок 4 сбросил поле",
+      "type": "reset"
+    },
+    {
+      "id": 1791888260830.4153,
+      "time": "13:44:20",
+      "text": "Игрок 2 применил офлайн-действие (3, 9)",
+      "type": "claim"
+    },
+    {
+      "id": 1791888260830.5234,
+      "time": "13:44:20",
+      "text": "Игрок 2 применил офлайн-действие (15, 4)",
+      "type": "claim"
+    },
+    {
+      "id": 1791888260830.8306,
+      "time": "13:44:20",
+      "text": "Игрок 2 применил офлайн-действие (15, 8)",
+      "type": "claim"
+    },
+    {
+      "id": 1791888260829.3894,
+      "time": "13:44:20",
+      "text": "Игрок 2 применил офлайн-действие (6, 9)",
+      "type": "claim"
+    },
+    {
+      "id": 1791888260787.6804,
+      "time": "13:44:20",
+      "text": "Игрок 2 применил офлайн-действие (8, 5)",
+      "type": "claim"
+    },
+    {
+      "id": 1791887579996,
+      "time": "13:32:59",
+      "text": "Игрок 1 захватил ячейку (1, 1)",
+      "type": "claim"
+    }
+  ]
 }
