@@ -10,5 +10,5 @@ export const ROLE_RANK = {
   [ROLES.ADMIN]: 3,
 };
 
-export const canAccess = (userRole, allowedRoles) => allowedRoles.includes(userRole);
-
+export const canAccess = (userRole, allowedRoles) =>
+  allowedRoles.includes(userRole);

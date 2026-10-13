@@ -5,7 +5,12 @@ import path from "path";
 import fs from "fs";
 import pkg from "pg";
 import { logger, httpLogger } from "./lib/logger.js";
-import { HttpError, asyncHandler, errorHandler, notFoundHandler } from "./lib/errors.js";
+import {
+  HttpError,
+  asyncHandler,
+  errorHandler,
+  notFoundHandler,
+} from "./lib/errors.js";
 import { createAuthRouter } from "./routes/auth.js";
 import { authRequired, requireRoles, hashPassword } from "./middleware/auth.js";
 import { ROLES } from "./lib/roles.js";
@@ -30,7 +35,10 @@ if (!fs.existsSync(uploadDir)) {
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, uploadDir),
   filename: (req, file, cb) => {
-    cb(null, `${Date.now()}-${Math.round(Math.random() * 1e9)}${path.extname(file.originalname)}`);
+    cb(
+      null,
+      `${Date.now()}-${Math.round(Math.random() * 1e9)}${path.extname(file.originalname)}`,
+    );
   },
 });
 
@@ -41,7 +49,13 @@ const upload = multer({
     if (file.mimetype.startsWith("image/")) {
       cb(null, true);
     } else {
-      cb(new HttpError(415, "UNSUPPORTED_MEDIA_TYPE", "Разрешены только изображения"));
+      cb(
+        new HttpError(
+          415,
+          "UNSUPPORTED_MEDIA_TYPE",
+          "Разрешены только изображения",
+        ),
+      );
     }
   },
 });
@@ -59,7 +73,11 @@ const parsePrice = (price) => {
 
 const parseBookedFlag = (val) => {
   if (typeof val === "boolean") return val;
-  return val === "true" || val === "1" ? true : val === "false" || val === "0" ? false : Boolean(val);
+  return val === "true" || val === "1"
+    ? true
+    : val === "false" || val === "0"
+      ? false
+      : Boolean(val);
 };
 
 const parseId = (id) => {
@@ -94,7 +112,9 @@ app.get(
   authRequired(pool),
   asyncHandler(async (req, res) => {
     const id = parseId(req.params.id);
-    const { rows } = await pool.query("SELECT * FROM rooms WHERE id = $1", [id]);
+    const { rows } = await pool.query("SELECT * FROM rooms WHERE id = $1", [
+      id,
+    ]);
     if (!rows.length) throw new HttpError(404, "NOT_FOUND", "Номер не найден");
     res.status(200).json(rows[0]);
   }),
@@ -107,10 +127,20 @@ app.post(
   upload.single("image"),
   asyncHandler(async (req, res) => {
     const { title, price, description } = req.body;
-    if (!title || !title.trim()) throw new HttpError(400, "VALIDATION_ERROR", "Название номера обязательно");
+    if (!title || !title.trim())
+      throw new HttpError(
+        400,
+        "VALIDATION_ERROR",
+        "Название номера обязательно",
+      );
 
     const parsedPrice = parsePrice(price);
-    if (parsedPrice === null) throw new HttpError(400, "VALIDATION_ERROR", "Укажите корректную цену больше 0");
+    if (parsedPrice === null)
+      throw new HttpError(
+        400,
+        "VALIDATION_ERROR",
+        "Укажите корректную цену больше 0",
+      );
 
     const imageUrl = req.file ? `/uploads/${req.file.filename}` : null;
     const { rows } = await pool.query(
@@ -118,7 +148,10 @@ app.post(
       [title.trim(), parsedPrice, description || "", imageUrl],
     );
 
-    logger.info({ event: "room.created", roomId: rows[0].id, userId: req.user.id }, "room_created");
+    logger.info(
+      { event: "room.created", roomId: rows[0].id, userId: req.user.id },
+      "room_created",
+    );
     res.status(201).json(rows[0]);
   }),
 );
@@ -132,12 +165,22 @@ app.put(
     const id = parseId(req.params.id);
     const { title, price, description, is_booked } = req.body;
 
-    if (!title || !title.trim()) throw new HttpError(400, "VALIDATION_ERROR", "Название номера обязательно");
+    if (!title || !title.trim())
+      throw new HttpError(
+        400,
+        "VALIDATION_ERROR",
+        "Название номера обязательно",
+      );
     const parsedPrice = parsePrice(price);
-    if (parsedPrice === null) throw new HttpError(400, "VALIDATION_ERROR", "Укажите корректную цену");
+    if (parsedPrice === null)
+      throw new HttpError(400, "VALIDATION_ERROR", "Укажите корректную цену");
 
-    const existing = await pool.query("SELECT image_url FROM rooms WHERE id = $1", [id]);
-    if (!existing.rows.length) throw new HttpError(404, "NOT_FOUND", "Ресурс не найден для обновления");
+    const existing = await pool.query(
+      "SELECT image_url FROM rooms WHERE id = $1",
+      [id],
+    );
+    if (!existing.rows.length)
+      throw new HttpError(404, "NOT_FOUND", "Ресурс не найден для обновления");
 
     let imageUrl = existing.rows[0].image_url;
     if (req.file) {
@@ -147,10 +190,20 @@ app.put(
 
     const { rows } = await pool.query(
       "UPDATE rooms SET title = $1, price = $2, description = $3, is_booked = $4, image_url = $5 WHERE id = $6 RETURNING *",
-      [title.trim(), parsedPrice, description || "", parseBookedFlag(is_booked), imageUrl, id],
+      [
+        title.trim(),
+        parsedPrice,
+        description || "",
+        parseBookedFlag(is_booked),
+        imageUrl,
+        id,
+      ],
     );
 
-    logger.info({ event: "room.updated", roomId: id, userId: req.user.id }, "room_updated");
+    logger.info(
+      { event: "room.updated", roomId: id, userId: req.user.id },
+      "room_updated",
+    );
     res.status(200).json(rows[0]);
   }),
 );
@@ -163,10 +216,21 @@ app.patch(
     const id = parseId(req.params.id);
     const { is_booked } = req.body;
 
-    const { rows } = await pool.query("UPDATE rooms SET is_booked = $1 WHERE id = $2 RETURNING *", [Boolean(is_booked), id]);
+    const { rows } = await pool.query(
+      "UPDATE rooms SET is_booked = $1 WHERE id = $2 RETURNING *",
+      [Boolean(is_booked), id],
+    );
     if (!rows.length) throw new HttpError(404, "NOT_FOUND", "Номер не найден");
 
-    logger.info({ event: "room.booked", roomId: id, userId: req.user.id, is_booked: Boolean(is_booked) }, "room_booking_changed");
+    logger.info(
+      {
+        event: "room.booked",
+        roomId: id,
+        userId: req.user.id,
+        is_booked: Boolean(is_booked),
+      },
+      "room_booking_changed",
+    );
     res.status(200).json(rows[0]);
   }),
 );
@@ -177,11 +241,18 @@ app.delete(
   requireRoles(ROLES.ADMIN),
   asyncHandler(async (req, res) => {
     const id = parseId(req.params.id);
-    const { rows } = await pool.query("DELETE FROM rooms WHERE id = $1 RETURNING *", [id]);
-    if (!rows.length) throw new HttpError(404, "NOT_FOUND", "Номер не найден для удаления");
+    const { rows } = await pool.query(
+      "DELETE FROM rooms WHERE id = $1 RETURNING *",
+      [id],
+    );
+    if (!rows.length)
+      throw new HttpError(404, "NOT_FOUND", "Номер не найден для удаления");
 
     deleteUploadIfExists(rows[0].image_url);
-    logger.info({ event: "room.deleted", roomId: id, userId: req.user.id }, "room_deleted");
+    logger.info(
+      { event: "room.deleted", roomId: id, userId: req.user.id },
+      "room_deleted",
+    );
     res.status(200).json({ message: "Номер успешно удален", id });
   }),
 );
@@ -194,21 +265,37 @@ const seedUsers = async () => {
   if (rows[0].n > 0) return;
 
   const seeds = [
-    { email: "admin@hotel.local", password: "Admin12345", name: "Администратор", role: ROLES.ADMIN },
-    { email: "manager@hotel.local", password: "Manager12345", name: "Менеджер", role: ROLES.MANAGER },
-    { email: "guest@hotel.local", password: "Guest12345", name: "Гость", role: ROLES.GUEST },
+    {
+      email: "admin@hotel.local",
+      password: "Admin12345",
+      name: "Администратор",
+      role: ROLES.ADMIN,
+    },
+    {
+      email: "manager@hotel.local",
+      password: "Manager12345",
+      name: "Менеджер",
+      role: ROLES.MANAGER,
+    },
+    {
+      email: "guest@hotel.local",
+      password: "Guest12345",
+      name: "Гость",
+      role: ROLES.GUEST,
+    },
   ];
 
   for (const u of seeds) {
     const passwordHash = await hashPassword(u.password);
-    await pool.query("INSERT INTO users (email, password_hash, name, role) VALUES ($1, $2, $3, $4)", [
-      u.email,
-      passwordHash,
-      u.name,
-      u.role,
-    ]);
+    await pool.query(
+      "INSERT INTO users (email, password_hash, name, role) VALUES ($1, $2, $3, $4)",
+      [u.email, passwordHash, u.name, u.role],
+    );
   }
-  logger.info({ event: "db.seeded", users: seeds.length }, "demo_users_created");
+  logger.info(
+    { event: "db.seeded", users: seeds.length },
+    "demo_users_created",
+  );
 };
 
 const initDb = async () => {
@@ -226,4 +313,3 @@ const initDb = async () => {
 };
 
 initDb();
-

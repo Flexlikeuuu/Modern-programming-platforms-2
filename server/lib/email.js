@@ -30,11 +30,16 @@ export const emailService = {
     sentEmails.push(message);
     if (sentEmails.length > 50) sentEmails.shift();
 
-    logger.info({ event: "email.password_reset_sent", recipient: to, expiresInMinutes }, "password_reset_email_sent");
+    logger.info(
+      { event: "email.password_reset_sent", recipient: to, expiresInMinutes },
+      "password_reset_email_sent",
+    );
     return message;
   },
 
-  getLastSentEmail: () => (sentEmails.length ? sentEmails[sentEmails.length - 1] : null),
-  clearHistory: () => { sentEmails.length = 0; },
+  getLastSentEmail: () =>
+    sentEmails.length ? sentEmails[sentEmails.length - 1] : null,
+  clearHistory: () => {
+    sentEmails.length = 0;
+  },
 };
-
