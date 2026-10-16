@@ -3,19 +3,31 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Pixel Battle - Realtime Multiplayer</title>
+  <title>Pixel Battle 100x100 - Realtime Multiplayer</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <div class="app-container">
     <header class="app-header">
       <div class="logo-area">
-        <h1>Pixel Battle</h1>
+        <h1>Pixel Battle <span class="tag-100">100x100</span></h1>
       </div>
-      <div class="connection-status">
-        <span id="status-indicator" class="status-dot connecting"></span>
-        <span id="status-text">Подключение...</span>
-        <span class="badge" id="online-count">Игроков: 0</span>
+
+      <div class="header-right">
+        <div class="user-profile-badge" id="user-badge">
+          <div class="user-avatar" id="user-avatar">👤</div>
+          <div class="user-meta">
+            <span class="user-name" id="display-username">Гость</span>
+            <span class="user-score" id="user-score-badge">Счёт: 0</span>
+          </div>
+          <button id="auth-modal-btn" class="btn btn-outline" type="button">Войти</button>
+        </div>
+
+        <div class="connection-status">
+          <span id="status-indicator" class="status-dot connecting"></span>
+          <span id="status-text">Подключение...</span>
+          <span class="badge" id="online-count">Онлайн: 0</span>
+        </div>
       </div>
     </header>
 
@@ -23,8 +35,8 @@
 
     <div class="toolbar">
       <div class="tool-group">
-        <label for="player-name">Игрок:</label>
-        <input type="text" id="player-name" maxlength="15" value="Игрок 1" title="Нажмите Enter для смены имени" placeholder="Имя игрока">
+        <label for="player-name">Имя:</label>
+        <input type="text" id="player-name" maxlength="20" value="Гость" title="Смена имени гостя (для постоянного аккаунта используйте Войти)" placeholder="Имя игрока">
       </div>
 
       <div class="tool-group">
@@ -44,36 +56,85 @@
 
       <div class="tool-actions">
         <span id="cooldown-timer" class="cooldown-badge hidden">КД: 5с</span>
-        <span id="queue-indicator" class="queue-badge hidden">Офлайн-очередь: 0</span>
+        <span id="queue-indicator" class="queue-badge hidden">Офлайн: 0</span>
         <button id="reset-grid-btn" class="btn btn-danger" type="button">Сбросить поле</button>
       </div>
     </div>
 
     <main class="main-layout">
       <div class="board-wrapper">
-        <div class="board-info">
-          <span>Сетка: 20x20</span>
-          <span id="cell-hover-info">Наведите на ячейку</span>
+        <div class="board-header-bar">
+          <div class="canvas-controls">
+            <button id="btn-zoom-in" class="btn btn-sm" title="Приблизить">+</button>
+            <button id="btn-zoom-out" class="btn btn-sm" title="Отдалить">-</button>
+            <button id="btn-zoom-reset" class="btn btn-sm" title="Сбросить масштаб и центрировать">100%</button>
+            <span id="zoom-level" class="zoom-badge">100%</span>
+          </div>
+          <div class="board-info">
+            <span id="cell-hover-info">Наведите курсор на холст (100x100)</span>
+          </div>
         </div>
-        <div id="grid" class="grid-board"></div>
+
+        <div class="canvas-container" id="canvas-container">
+          <canvas id="board-canvas"></canvas>
+          <div class="canvas-hint">💡 Колёсико мыши — масштаб, зажатие мыши — перемещение</div>
+        </div>
       </div>
 
       <aside class="sidebar">
         <div class="panel">
-          <h3>Рейтинг игроков</h3>
+          <h3>🏆 Топ игроков</h3>
           <div id="leaderboard" class="leaderboard-list">
-            <div class="empty-state">Нет данных</div>
+            <div class="empty-state">Загрузка...</div>
           </div>
         </div>
 
         <div class="panel">
-          <h3>Журнал событий</h3>
+          <h3>📜 Журнал событий</h3>
           <div id="log-list" class="log-list"></div>
         </div>
       </aside>
     </main>
   </div>
 
-  <script src="app.js"></script>
+  <div class="modal-overlay hidden" id="auth-modal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="modal-tabs">
+          <button class="tab-btn active" id="tab-login" type="button">Вход</button>
+          <button class="tab-btn" id="tab-register" type="button">Регистрация</button>
+        </div>
+        <button class="modal-close" id="modal-close-btn" type="button">&times;</button>
+      </div>
+
+      <div class="modal-body">
+        <div id="auth-error-box" class="modal-alert hidden"></div>
+
+        <form id="auth-form">
+          <div class="form-group">
+            <label for="auth-username">Логин:</label>
+            <input type="text" id="auth-username" required maxlength="20" placeholder="Логин (от 3 до 20 символов)">
+          </div>
+
+          <div class="form-group">
+            <label for="auth-password">Пароль:</label>
+            <input type="password" id="auth-password" required minlength="4" placeholder="Пароль (не менее 4 символов)">
+          </div>
+
+          <div class="form-group hidden" id="auth-color-group">
+            <label for="auth-color">Любимый цвет:</label>
+            <input type="color" id="auth-color" value="#e63946">
+          </div>
+
+          <div class="modal-actions">
+            <button type="submit" class="btn btn-primary" id="auth-submit-btn">Войти</button>
+            <button type="button" class="btn btn-secondary" id="auth-guest-btn">Играть как гость</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="js/main.js"></script>
 </body>
 </html>
