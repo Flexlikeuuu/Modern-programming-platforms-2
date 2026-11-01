@@ -240,7 +240,7 @@ export function createAuthRouter(pool) {
       const normalized = String(email).trim().toLowerCase();
       const { rows } = await pool.query("SELECT id, email, name FROM users WHERE email = $1", [normalized]);
 
-      let devToken = null;
+      let devPreviewUrl = null;
       if (rows.length > 0) {
         const user = rows[0];
         const rawToken = generateRawToken();
@@ -254,7 +254,7 @@ export function createAuthRouter(pool) {
         );
 
         const origin = req.headers.origin || "http://localhost:3000";
-        await emailService.sendPasswordResetEmail({
+        const emailResult = await emailService.sendPasswordResetEmail({
           to: user.email,
           userName: user.name,
           resetToken: rawToken,
@@ -263,14 +263,50 @@ export function createAuthRouter(pool) {
         });
 
         logger.info({ event: "auth.forgot_password_requested", userId: user.id }, "forgot_password_requested");
-        if (process.env.NODE_ENV !== "production") devToken = rawToken;
+        if (process.env.NODE_ENV !== "production") {
+          if (emailResult?.previewUrl) {
+            devPreviewUrl = emailResult.previewUrl;
+          }
+        }
       } else {
         logger.info({ event: "auth.forgot_password_unknown_email", email: normalized }, "forgot_password_unknown_email");
       }
 
       res.status(200).json({
         message: "Если данный email зарегистрирован в системе, на него отправлены инструкции по сбросу пароля.",
-        ...(devToken ? { devResetToken: devToken } : {}),
+        ...(devPreviewUrl ? { previewUrl: devPreviewUrl } : {}),
+      });
+    }),
+  );
+
+  router.post(
+    "/change-password",
+    authRequired(pool),
+    asyncHandler(async (req, res) => {
+      const { currentPassword, newPassword } = req.body || {};
+      if (!currentPassword || !newPassword) {
+        throw new HttpError(400, "VALIDATION_ERROR", "Укажите текущий и новый пароль");
+      }
+      if (String(newPassword).length < 8) {
+        throw new HttpError(400, "VALIDATION_ERROR", "Новый пароль должен содержать минимум 8 символов");
+      }
+
+      const { rows } = await pool.query("SELECT password_hash FROM users WHERE id = $1", [req.user.id]);
+      if (!rows.length) {
+        throw new HttpError(404, "USER_NOT_FOUND", "Пользователь не найден");
+      }
+
+      const matches = await comparePassword(currentPassword, rows[0].password_hash);
+      if (!matches) {
+        throw new HttpError(401, "INVALID_CREDENTIALS", "Текущий пароль указан неверно");
+      }
+
+      const passwordHash = await hashPassword(newPassword);
+      await pool.query("UPDATE users SET password_hash = $1 WHERE id = $2", [passwordHash, req.user.id]);
+
+      logger.info({ event: "auth.password_changed", userId: req.user.id }, "password_changed");
+      res.status(200).json({
+        message: "Пароль успешно изменён.",
       });
     }),
   );

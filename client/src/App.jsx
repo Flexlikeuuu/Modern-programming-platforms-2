@@ -17,6 +17,15 @@ export default function App() {
   const [editingId, setEditingId] = useState(null);
   const [sessions, setSessions] = useState([]);
 
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filterStatus, setFilterStatus] = useState("all");
+  const [sortBy, setSortBy] = useState("default");
+
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [changingPassword, setChangingPassword] = useState(false);
+
   const [title, setTitle] = useState("");
   const [price, setPrice] = useState("");
   const [description, setDescription] = useState("");
@@ -98,33 +107,37 @@ export default function App() {
     formData.append("title", title.trim());
     formData.append("price", price);
     formData.append("description", description);
-    if (isBooked !== undefined) formData.append("is_booked", String(isBooked));
+    formData.append("is_booked", isBooked);
     if (imageFile) formData.append("image", imageFile);
     return formData;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError("");
+    if (!title.trim()) return showError("Введите название номера");
+    const numPrice = parseFloat(price);
+    if (isNaN(numPrice) || numPrice <= 0) return showError("Укажите корректную цену");
 
     try {
       if (editingId) {
-        const data = await api(`/api/rooms/${editingId}`, {
+        const isBooked = editingRoom ? editingRoom.is_booked : false;
+        const formData = buildFormData(isBooked);
+        const updated = await api(`/api/rooms/${editingId}`, {
           method: "PUT",
-          body: buildFormData(editingRoom?.is_booked ?? false),
+          body: formData,
         });
-        setRooms(rooms.map((r) => (Number(r.id) === Number(editingId) ? data : r)));
-        showSuccess("Номер успешно обновлён");
-        resetForm();
+        setRooms(rooms.map((r) => (Number(r.id) === Number(editingId) ? updated : r)));
+        showSuccess("Номер обновлён");
       } else {
-        const data = await api("/api/rooms", {
+        const formData = buildFormData(false);
+        const created = await api("/api/rooms", {
           method: "POST",
-          body: buildFormData(),
+          body: formData,
         });
-        setRooms([data, ...rooms]);
-        showSuccess("Номер успешно добавлен");
-        resetForm();
+        setRooms([created, ...rooms]);
+        showSuccess("Номер добавлен в каталог");
       }
+      resetForm();
     } catch (err) {
       showError(err.message);
     }
@@ -132,19 +145,20 @@ export default function App() {
 
   const toggleBook = async (room) => {
     try {
-      const data = await api(`/api/rooms/${room.id}/book`, {
+      const nextBooked = !room.is_booked;
+      const updated = await api(`/api/rooms/${room.id}`, {
         method: "PATCH",
-        json: { is_booked: !room.is_booked },
+        json: { is_booked: nextBooked },
       });
-      setRooms(rooms.map((r) => (Number(r.id) === Number(room.id) ? data : r)));
-      showSuccess(room.is_booked ? "Бронь снята" : "Номер забронирован");
+      setRooms(rooms.map((r) => (Number(r.id) === Number(room.id) ? updated : r)));
+      showSuccess(nextBooked ? "Номер забронирован" : "Бронь снята");
     } catch (err) {
       showError(err.message);
     }
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm("Вы действительно хотите удалить этот номер?")) return;
+    if (!window.confirm("Удалить этот номер из каталога?")) return;
     try {
       await api(`/api/rooms/${id}`, { method: "DELETE" });
       setRooms(rooms.filter((r) => Number(r.id) !== Number(id)));
@@ -195,8 +209,53 @@ export default function App() {
     setUser(null);
   };
 
+  const handleChangePassword = async (e) => {
+    e.preventDefault();
+    if (!currentPassword || !newPassword) return;
+    if (newPassword.length < 8) {
+      showError("Новый пароль должен содержать минимум 8 символов");
+      return;
+    }
+    setChangingPassword(true);
+    try {
+      const data = await api("/api/auth/change-password", {
+        method: "POST",
+        json: { currentPassword, newPassword },
+      });
+      showSuccess(data.message || "Пароль успешно обновлен!");
+      setCurrentPassword("");
+      setNewPassword("");
+      setShowPasswordModal(false);
+    } catch (err) {
+      showError(err.message);
+    } finally {
+      setChangingPassword(false);
+    }
+  };
+
   const availableCount = rooms.filter((r) => !r.is_booked).length;
   const bookedCount = rooms.filter((r) => r.is_booked).length;
+
+  const filteredRooms = useMemo(() => {
+    return rooms
+      .filter((r) => {
+        if (filterStatus === "available" && r.is_booked) return false;
+        if (filterStatus === "booked" && !r.is_booked) return false;
+        if (searchQuery.trim()) {
+          const q = searchQuery.toLowerCase().trim();
+          const inTitle = (r.title || "").toLowerCase().includes(q);
+          const inDesc = (r.description || "").toLowerCase().includes(q);
+          if (!inTitle && !inDesc) return false;
+        }
+        return true;
+      })
+      .sort((a, b) => {
+        if (sortBy === "price-asc") return Number(a.price) - Number(b.price);
+        if (sortBy === "price-desc") return Number(b.price) - Number(a.price);
+        if (sortBy === "title") return (a.title || "").localeCompare(b.title || "");
+        return 0;
+      });
+  }, [rooms, searchQuery, filterStatus, sortBy]);
 
   if (!user) {
     return (
@@ -220,6 +279,14 @@ export default function App() {
                 <div className="user-name">{user.name}</div>
                 <div className="user-role">{ROLE_LABEL[user.role] || user.role}</div>
               </div>
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                onClick={() => setShowPasswordModal(true)}
+                title="Сменить пароль учетной записи"
+              >
+                Пароль
+              </button>
               <button type="button" className="btn btn-secondary btn-sm" onClick={logout}>
                 Выйти
               </button>
@@ -340,9 +407,70 @@ export default function App() {
               <span className="catalog-count">
                 {rooms.length === 0
                   ? "Пока пусто"
-                  : `${rooms.length} ${rooms.length === 1 ? "номер" : rooms.length < 5 ? "номера" : "номеров"}`}
+                  : `Показано ${filteredRooms.length} из ${rooms.length}`}
               </span>
             </div>
+
+            {rooms.length > 0 && (
+              <div className="catalog-toolbar">
+                <div className="search-box">
+                  <input
+                    type="text"
+                    placeholder="🔍 Поиск по названию или описанию..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="search-input"
+                  />
+                  {searchQuery && (
+                    <button
+                      type="button"
+                      className="search-clear-btn"
+                      onClick={() => setSearchQuery("")}
+                      title="Очистить поиск"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+
+                <div className="filters-group">
+                  <div className="filter-pills">
+                    <button
+                      type="button"
+                      className={`filter-pill ${filterStatus === "all" ? "active" : ""}`}
+                      onClick={() => setFilterStatus("all")}
+                    >
+                      Все ({rooms.length})
+                    </button>
+                    <button
+                      type="button"
+                      className={`filter-pill ${filterStatus === "available" ? "active" : ""}`}
+                      onClick={() => setFilterStatus("available")}
+                    >
+                      Свободные ({availableCount})
+                    </button>
+                    <button
+                      type="button"
+                      className={`filter-pill ${filterStatus === "booked" ? "active" : ""}`}
+                      onClick={() => setFilterStatus("booked")}
+                    >
+                      Занятые ({bookedCount})
+                    </button>
+                  </div>
+
+                  <select
+                    value={sortBy}
+                    onChange={(e) => setSortBy(e.target.value)}
+                    className="sort-select"
+                  >
+                    <option value="default">Сортировка: По умолчанию</option>
+                    <option value="price-asc">Цена: Сначала дешевле</option>
+                    <option value="price-desc">Цена: Сначала дороже</option>
+                    <option value="title">По названию (А-Я)</option>
+                  </select>
+                </div>
+              </div>
+            )}
 
             <div className="rooms-grid">
               {rooms.length === 0 ? (
@@ -356,8 +484,25 @@ export default function App() {
                       : "Дождитесь, пока менеджер добавит номера."}
                   </p>
                 </div>
+              ) : filteredRooms.length === 0 ? (
+                <div className="empty-state">
+                  <div className="empty-icon">🔍</div>
+                  <p>По выбранным параметрам ничего не найдено.</p>
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    style={{ marginTop: "0.5rem" }}
+                    onClick={() => {
+                      setSearchQuery("");
+                      setFilterStatus("all");
+                      setSortBy("default");
+                    }}
+                  >
+                    Сбросить фильтры
+                  </button>
+                </div>
               ) : (
-                rooms.map((room) => (
+                filteredRooms.map((room) => (
                   <article
                     key={room.id}
                     className={`room-card${room.is_booked ? " booked" : ""}${
@@ -450,6 +595,60 @@ export default function App() {
           </section>
         </div>
       </main>
+
+      {showPasswordModal && (
+        <div className="modal-backdrop" onClick={() => setShowPasswordModal(false)}>
+          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>Смена пароля</h3>
+              <button
+                type="button"
+                className="modal-close"
+                onClick={() => setShowPasswordModal(false)}
+              >
+                ✕
+              </button>
+            </div>
+            <form onSubmit={handleChangePassword}>
+              <div className="form-group">
+                <label htmlFor="currentPassword">Текущий пароль</label>
+                <input
+                  id="currentPassword"
+                  type="password"
+                  value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value)}
+                  placeholder="Введите текущий пароль"
+                  required
+                />
+              </div>
+              <div className="form-group">
+                <label htmlFor="modalNewPassword">Новый пароль</label>
+                <input
+                  id="modalNewPassword"
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="Минимум 8 символов"
+                  minLength={8}
+                  required
+                />
+              </div>
+              <div className="form-actions" style={{ marginTop: "1.25rem" }}>
+                <button type="submit" className="btn btn-primary" disabled={changingPassword}>
+                  {changingPassword ? "Сохранение…" : "Сохранить новый пароль"}
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => setShowPasswordModal(false)}
+                >
+                  Отмена
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
