@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GraphQL Hub</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Plus+Jakarta+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <header class="app-header">
+    <div class="brand">
+      <span class="badge badge-accent">GraphQL</span>
+      <h1>Data & Federation Hub</h1>
+    </div>
+    <div class="header-pills">
+      <span class="pill pill-green"><i class="dot"></i> Gateway :4000</span>
+      <span class="pill"><i class="dot"></i> Records :4001</span>
+      <span class="pill"><i class="dot"></i> Comments :4002</span>
+      <span class="pill"><i class="dot"></i> Monitoring :4003</span>
+      <span class="pill pill-accent" id="stat-total-pill">10,500+ записей</span>
+    </div>
+  </header>
+
+  <nav class="nav-tabs">
+    <button class="tab-btn active" data-tab="data-tab">Данные</button>
+    <button class="tab-btn" data-tab="builder-tab">Конструктор запросов</button>
+    <button class="tab-btn" data-tab="monitoring-tab">Мониторинг & Трассировка</button>
+  </nav>
+
+  <main class="main-content">
+    <section class="tab-panel active" id="data-tab">
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-icon">📦</div>
+          <div>
+            <div class="stat-num" id="st-total">0</div>
+            <div class="stat-label">Всего записей</div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">🌍</div>
+          <div>
+            <div class="stat-num" id="st-weather">0</div>
+            <div class="stat-label">Погода (WEATHER)</div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">📈</div>
+          <div>
+            <div class="stat-num" id="st-finance">0</div>
+            <div class="stat-label">Финансы (FINANCE)</div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">🖥️</div>
+          <div>
+            <div class="stat-num" id="st-infra">0</div>
+            <div class="stat-label">Кластеры (INFRA)</div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">⚠️</div>
+          <div>
+            <div class="stat-num" id="st-alerts">0</div>
+            <div class="stat-label">Аномалии</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="toolbar">
+        <div class="search-box">
+          <input type="text" id="filter-search" placeholder="Поиск по названию или городу...">
+        </div>
+        <div class="filters">
+          <select id="filter-source">
+            <option value="ALL">Все источники</option>
+            <option value="WEATHER">Метеостанции</option>
+            <option value="FINANCE">Финансы</option>
+            <option value="INFRASTRUCTURE">Кластеры</option>
+          </select>
+          <select id="filter-sort">
+            <option value="CREATED_AT">По дате</option>
+            <option value="VALUE">По значению</option>
+            <option value="TITLE">По названию</option>
+          </select>
+          <select id="filter-order">
+            <option value="DESC">По убыванию</option>
+            <option value="ASC">По возрастанию</option>
+          </select>
+        </div>
+        <div class="actions">
+          <button class="btn btn-primary" id="btn-collect">+ Собрать (+30)</button>
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Источник</th>
+              <th>Название</th>
+              <th>Показатель</th>
+              <th>Локация</th>
+              <th>Статус</th>
+              <th>Комментарии (Federation)</th>
+            </tr>
+          </thead>
+          <tbody id="records-tbody">
+            <tr><td colspan="7" class="text-center">Загрузка данных...</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="pagination">
+        <div id="page-info">Показано 0 из 0</div>
+        <div class="page-btns">
+          <button class="btn btn-sm" id="btn-prev" disabled>◀ Назад</button>
+          <span id="page-current">Стр. 1</span>
+          <button class="btn btn-sm" id="btn-next">Вперед ▶</button>
+          <select id="page-size">
+            <option value="15">15</option>
+            <option value="25" selected>25</option>
+            <option value="50">50</option>
+          </select>
+        </div>
+      </div>
+    </section>
+
+    <section class="tab-panel" id="builder-tab">
+      <div class="builder-grid">
+        <div class="card">
+          <h3>Конструктор запроса</h3>
+          <div class="form-group">
+            <label>Лимит:</label>
+            <input type="number" id="qb-limit" value="3" min="1" max="20" style="width: 70px;">
+          </div>
+          <div class="form-group">
+            <label>Поля сущности Record:</label>
+            <div class="checkbox-list">
+              <label><input type="checkbox" id="qb-f-val" checked> Значение (value, unit)</label>
+              <label><input type="checkbox" id="qb-f-loc" checked> Локация (location - ур. 2)</label>
+              <label><input type="checkbox" id="qb-f-coord" checked> Координаты (coordinates - ур. 3)</label>
+              <label><input type="checkbox" id="qb-f-comm" checked> Отзывы (comments - ур. 2, Federation)</label>
+              <label><input type="checkbox" id="qb-f-author" checked> Автор (author - ур. 3)</label>
+              <label><input type="checkbox" id="qb-f-badge" checked> Бейдж автора (badge - ур. 4-5)</label>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Шаблоны:</label>
+            <div class="template-btns">
+              <button class="btn btn-xs btn-outline" data-tmpl="deep">Глубокий (5 уровней)</button>
+              <button class="btn btn-xs btn-outline" data-tmpl="stats">Сводка</button>
+              <button class="btn btn-xs btn-outline" data-tmpl="depth-err">Тест глубины (>8)</button>
+            </div>
+          </div>
+          <button class="btn btn-primary btn-block" id="btn-run-query">▶ Выполнить запрос</button>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <span>GraphQL Document</span>
+            <span class="badge" id="qb-cache-tag">X-Cache: ---</span>
+          </div>
+          <textarea id="qb-editor" spellcheck="false"></textarea>
+
+          <div class="card-head mt-12">
+            <span>Ответ сервера</span>
+            <span class="badge badge-accent" id="qb-time-tag">0 ms</span>
+          </div>
+          <pre class="json-box" id="qb-result">Нажмите "Выполнить запрос"</pre>
+        </div>
+      </div>
+    </section>
+
+    <section class="tab-panel" id="monitoring-tab">
+      <div class="stats-grid">
+        <div class="card">
+          <h3>Контроль нагрузки</h3>
+          <div class="meta-row"><span>Rate Limit:</span><strong>150 req / 60s</strong></div>
+          <div class="meta-row"><span>Осталось запросов:</span><strong id="rate-rem">150</strong></div>
+          <div class="meta-row"><span>Сброс окна:</span><strong id="rate-rst">60s</strong></div>
+          <div class="meta-row"><span>Лимит глубины:</span><strong>8 уровней</strong></div>
+          <div class="meta-row"><span>LRU Кэш:</span><strong>3000 ms</strong></div>
+          <button class="btn btn-xs btn-outline mt-12" id="btn-burst">Отправить пачку 10 запросов</button>
+        </div>
+
+        <div class="card">
+          <h3>Отказоустойчивость (Chaos Test)</h3>
+          <p class="meta-sub">Имитация сбоя подграфа Comments для проверки работы:</p>
+          <div class="meta-row">
+            <span>Comments Subgraph:</span>
+            <span class="badge badge-accent" id="chaos-status">ONLINE</span>
+          </div>
+          <div class="chaos-btns mt-12">
+            <button class="btn btn-xs btn-outline" id="btn-chaos-fail">Сбой сервиса</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>Системные ресурсы</h3>
+          <div class="meta-row"><span>Uptime:</span><strong id="sys-up">0s</strong></div>
+          <div class="meta-row"><span>Память RSS:</span><strong id="sys-rss">0 MB</strong></div>
+          <div class="meta-row"><span>V8 Heap:</span><strong id="sys-heap">0 MB</strong></div>
+          <div class="meta-row"><span>Node.js:</span><strong id="sys-node">v24</strong></div>
+        </div>
+      </div>
+
+      <div class="card mt-16">
+        <div class="card-head">
+          <h3>Журнал трассировки (Tracing)</h3>
+          <button class="btn btn-xs btn-outline" id="btn-refresh-mon">↻ Обновить</button>
+        </div>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Время</th>
+                <th>Операция</th>
+                <th>Длительность</th>
+                <th>Глубина</th>
+                <th>Статус</th>
+                <th>Запрос</th>
+              </tr>
+            </thead>
+            <tbody id="traces-tbody">
+              <tr><td colspan="6" class="text-center">Загрузка...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div id="toast"></div>
+  <script src="app.js"></script>
+</body>
+</html>
