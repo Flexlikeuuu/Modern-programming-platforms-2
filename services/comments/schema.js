@@ -19,12 +19,13 @@ const typeDefs = gql`
     recordId: ID!
     content: String!
     author: Author!
+    record: Record
     createdAt: String!
   }
 
   extend type Record @key(fields: "id") {
     id: ID! @external
-    comments(limit: Int = 3): [Comment!]!
+    comments(limit: Int = 3): [Comment!]
   }
 
   input AddCommentInput {

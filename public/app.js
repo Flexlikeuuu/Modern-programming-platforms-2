@@ -156,7 +156,9 @@ async function loadData() {
           : '<span class="badge badge-normal">NORMAL</span>';
 
       let commentsHtml = '<span style="color: var(--muted);">0 отзывов</span>';
-      if (r.comments && r.comments.length) {
+      if (r.comments === null) {
+        commentsHtml = '<span class="badge badge-alert" style="font-size: 10px;">⚠️ Сервис недоступен</span>';
+      } else if (r.comments && r.comments.length) {
         const c = r.comments[0];
         commentsHtml = `<span style="font-size: 11px;">💬 <strong>${escapeHtml(c.author?.username || "user")}</strong> (${escapeHtml(c.author?.badge?.title || "Lv." + c.author?.badge?.level)}): "${escapeHtml(c.content)}"</span>`;
       }
@@ -349,7 +351,7 @@ window.addEventListener("DOMContentLoaded", () => {
       } else if (tmpl === "stats") {
         ed.value = `query Summary {\n  stats { total weather finance infra alerts }\n  systemMetrics { uptimeSeconds memoryRssMb nodeVersion }\n  subgraphsStatus { name status }\n}`;
       } else if (tmpl === "depth-err") {
-        ed.value = `query DepthOverflow {\n  records(pageSize: 1) {\n    items {\n      location {\n        coordinates {\n          lat\n          lon\n        }\n      }\n      comments {\n        author {\n          badge {\n            title\n            level\n          }\n        }\n      }\n    }\n  }\n}`;
+        ed.value = `query DepthOverflow {\n  records(pageSize: 1) {\n    items {\n      comments {\n        record {\n          comments {\n            record {\n              comments {\n                author {\n                  badge {\n                    title\n                  }\n                }\n              }\n            }\n          }\n        }\n      }\n    }\n  }\n}`;
       }
       runQuery();
     });
