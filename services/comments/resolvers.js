@@ -5,7 +5,7 @@ function createResolvers(store) {
         if (context?.loaders?.authorByIdLoader) {
           return context.loaders.authorByIdLoader.load(comment.authorId);
         }
-        return store.authors.find(a => a.id === comment.authorId) || store.authors[0];
+        return store.getAuthorById(comment.authorId) || store.authors[0];
       },
       record: (comment) => ({ __typename: 'Record', id: comment.recordId })
     },

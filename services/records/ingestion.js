@@ -177,8 +177,11 @@ class IngestionManager {
   }
 
   seed(total = 10500) {
-    const batch = generateLocalBatch(total, Date.now());
-    this.store.addBatch(batch);
+    if (this.store.count < total) {
+      const needed = total - this.store.count;
+      const batch = generateLocalBatch(needed, Date.now());
+      this.store.addBatch(batch);
+    }
     this.collect(30).catch(console.error);
   }
 

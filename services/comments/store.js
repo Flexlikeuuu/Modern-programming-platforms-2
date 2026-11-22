@@ -1,10 +1,14 @@
+const path = require('path');
+const fs = require('fs');
+const { DatabaseSync } = require('node:sqlite');
+
 const AUTHORS = [
-  { id: 'usr-1', username: 'alex_meteo', badge: { title: 'Senior Meteorologist', level: 4 } },
-  { id: 'usr-2', username: 'elena_eco', badge: { title: 'Lead Eco Inspector', level: 5 } },
-  { id: 'usr-3', username: 'kenji_sensor', badge: { title: 'IoT Station Engineer', level: 3 } },
-  { id: 'usr-4', username: 'dmitry_analyst', badge: { title: 'Climate Data Scientist', level: 5 } },
-  { id: 'usr-5', username: 'sarah_health', badge: { title: 'WHO Health Advisor', level: 4 } },
-  { id: 'usr-6', username: 'olga_monitor', badge: { title: 'Air Quality Specialist', level: 2 } }
+  { id: 'usr-1', username: 'alex_meteo', badgeTitle: 'Senior Meteorologist', badgeLevel: 4 },
+  { id: 'usr-2', username: 'elena_eco', badgeTitle: 'Lead Eco Inspector', badgeLevel: 5 },
+  { id: 'usr-3', username: 'kenji_sensor', badgeTitle: 'IoT Station Engineer', badgeLevel: 3 },
+  { id: 'usr-4', username: 'dmitry_analyst', badgeTitle: 'Climate Data Scientist', badgeLevel: 5 },
+  { id: 'usr-5', username: 'sarah_health', badgeTitle: 'WHO Health Advisor', badgeLevel: 4 },
+  { id: 'usr-6', username: 'olga_monitor', badgeTitle: 'Air Quality Specialist', badgeLevel: 2 }
 ];
 
 const WEATHER_TEMPLATES = [
@@ -38,33 +42,118 @@ function hashString(str) {
 }
 
 class CommentsStore {
-  constructor() {
-    this.comments = [];
-    this.byRecord = new Map();
-    this.authors = AUTHORS;
+  constructor(dbPath) {
+    const dataDir = path.join(__dirname, '..', '..', 'data');
+    if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
+
+    this.dbPath = dbPath || path.join(dataDir, 'comments.db');
+    this.db = new DatabaseSync(this.dbPath);
+
+    this.initSchema();
+    this.initAuthors();
     this.seed(3000);
   }
 
+  initSchema() {
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS authors (
+        id TEXT PRIMARY KEY,
+        username TEXT UNIQUE NOT NULL,
+        badgeTitle TEXT NOT NULL,
+        badgeLevel INTEGER NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS comments (
+        id TEXT PRIMARY KEY,
+        recordId TEXT NOT NULL,
+        content TEXT NOT NULL,
+        authorId TEXT NOT NULL,
+        createdAt TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_comments_recordId ON comments(recordId);
+    `);
+  }
+
+  initAuthors() {
+    const stmt = this.db.prepare(`
+      INSERT OR IGNORE INTO authors (id, username, badgeTitle, badgeLevel)
+      VALUES (?, ?, ?, ?)
+    `);
+    this.db.exec('BEGIN TRANSACTION');
+    try {
+      for (const a of AUTHORS) {
+        stmt.run(a.id, a.username, a.badgeTitle, a.badgeLevel);
+      }
+      this.db.exec('COMMIT');
+    } catch (err) {
+      this.db.exec('ROLLBACK');
+      throw err;
+    }
+  }
+
+  get count() {
+    const row = this.db.prepare('SELECT COUNT(*) as count FROM comments').get();
+    return row ? row.count : 0;
+  }
+
+  get authors() {
+    const rows = this.db.prepare('SELECT id, username, badgeTitle, badgeLevel FROM authors').all();
+    return rows.map(a => ({
+      id: a.id,
+      username: a.username,
+      badge: { title: a.badgeTitle, level: a.badgeLevel }
+    }));
+  }
+
+  getAuthorById(id) {
+    const a = this.db.prepare('SELECT id, username, badgeTitle, badgeLevel FROM authors WHERE id = ?').get(id);
+    if (!a) return null;
+    return {
+      id: a.id,
+      username: a.username,
+      badge: { title: a.badgeTitle, level: a.badgeLevel }
+    };
+  }
+
   seed(count = 3000) {
-    for (let i = 1; i <= count; i++) {
-      const recordId = `WTH-sample-${(i % 500) + 1}`;
-      const author = AUTHORS[i % AUTHORS.length];
-      const comment = {
-        id: `COM-${i}`,
-        recordId,
-        content: WEATHER_TEMPLATES[i % WEATHER_TEMPLATES.length],
-        authorId: author.id,
-        createdAt: new Date().toISOString()
-      };
-      this.comments.push(comment);
-      if (!this.byRecord.has(recordId)) this.byRecord.set(recordId, []);
-      this.byRecord.get(recordId).push(comment);
+    if (this.count >= count) return;
+
+    const stmt = this.db.prepare(`
+      INSERT OR REPLACE INTO comments (id, recordId, content, authorId, createdAt)
+      VALUES (?, ?, ?, ?, ?)
+    `);
+
+    const needed = count - this.count;
+    this.db.exec('BEGIN TRANSACTION');
+    try {
+      for (let i = 1; i <= needed; i++) {
+        const recordId = `WTH-sample-${(i % 500) + 1}`;
+        const author = AUTHORS[i % AUTHORS.length];
+        stmt.run(
+          `COM-${i}`,
+          recordId,
+          WEATHER_TEMPLATES[i % WEATHER_TEMPLATES.length],
+          author.id,
+          new Date().toISOString()
+        );
+      }
+      this.db.exec('COMMIT');
+    } catch (err) {
+      this.db.exec('ROLLBACK');
+      throw err;
     }
   }
 
   getByRecordId(recordId, limit = 5) {
-    if (this.byRecord.has(recordId)) {
-      return this.byRecord.get(recordId).slice(0, limit);
+    const rows = this.db.prepare(`
+      SELECT id, recordId, content, authorId, createdAt
+      FROM comments
+      WHERE recordId = ?
+      ORDER BY createdAt DESC
+      LIMIT ?
+    `).all(recordId, limit);
+
+    if (rows && rows.length > 0) {
+      return rows;
     }
 
     const h = hashString(recordId);
@@ -72,10 +161,10 @@ class CommentsStore {
     if (recordId.startsWith('AIR')) templates = AIR_TEMPLATES;
     else if (recordId.startsWith('RAD')) templates = RADIATION_TEMPLATES;
 
-    const author1 = this.authors[h % this.authors.length];
+    const author1 = AUTHORS[h % AUTHORS.length];
     const text1 = templates[h % templates.length];
 
-    const author2 = this.authors[(h + 2) % this.authors.length];
+    const author2 = AUTHORS[(h + 2) % AUTHORS.length];
     const text2 = templates[(h + 1) % templates.length];
 
     const list = [
@@ -95,30 +184,49 @@ class CommentsStore {
       }
     ];
 
-    this.byRecord.set(recordId, list);
-    for (const c of list) this.comments.push(c);
+    const stmt = this.db.prepare(`
+      INSERT OR REPLACE INTO comments (id, recordId, content, authorId, createdAt)
+      VALUES (?, ?, ?, ?, ?)
+    `);
+    this.db.exec('BEGIN TRANSACTION');
+    try {
+      for (const c of list) {
+        stmt.run(c.id, c.recordId, c.content, c.authorId, c.createdAt);
+      }
+      this.db.exec('COMMIT');
+    } catch (err) {
+      this.db.exec('ROLLBACK');
+    }
 
     return list.slice(0, limit);
   }
 
   addComment({ recordId, username, content }) {
-    let author = this.authors.find(a => a.username === username);
-    if (!author) {
-      author = { id: `usr-${this.authors.length + 1}`, username, badge: { title: 'Eco Analyst', level: 1 } };
-      this.authors.push(author);
+    let authorRow = this.db.prepare('SELECT id, username, badgeTitle, badgeLevel FROM authors WHERE username = ?').get(username);
+    if (!authorRow) {
+      const newId = `usr-${Date.now()}`;
+      this.db.prepare('INSERT INTO authors (id, username, badgeTitle, badgeLevel) VALUES (?, ?, ?, ?)').run(
+        newId,
+        username,
+        'Eco Analyst',
+        1
+      );
+      authorRow = { id: newId, username, badgeTitle: 'Eco Analyst', badgeLevel: 1 };
     }
 
     const comment = {
       id: `COM-${Date.now()}`,
       recordId,
       content,
-      authorId: author.id,
+      authorId: authorRow.id,
       createdAt: new Date().toISOString()
     };
 
-    this.comments.unshift(comment);
-    if (!this.byRecord.has(recordId)) this.byRecord.set(recordId, []);
-    this.byRecord.get(recordId).unshift(comment);
+    this.db.prepare(`
+      INSERT INTO comments (id, recordId, content, authorId, createdAt)
+      VALUES (?, ?, ?, ?, ?)
+    `).run(comment.id, comment.recordId, comment.content, comment.authorId, comment.createdAt);
+
     return comment;
   }
 }
