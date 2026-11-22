@@ -12,8 +12,8 @@
 <body>
   <header class="app-header">
     <div class="brand">
-      <span class="badge badge-accent">GraphQL</span>
-      <h1>Data & Federation Hub</h1>
+      <span class="badge badge-accent">EcoMeteo</span>
+      <h1>Global Environmental Network</h1>
     </div>
     <div class="header-pills">
       <span class="pill pill-green"><i class="dot"></i> Gateway :4000</span>
@@ -44,21 +44,21 @@
           <div class="stat-icon">🌍</div>
           <div>
             <div class="stat-num" id="st-weather">0</div>
-            <div class="stat-label">Погода (WEATHER)</div>
+            <div class="stat-label">Погода (°C)</div>
           </div>
         </div>
         <div class="stat-card">
-          <div class="stat-icon">📈</div>
+          <div class="stat-icon">🍃</div>
           <div>
-            <div class="stat-num" id="st-finance">0</div>
-            <div class="stat-label">Финансы (FINANCE)</div>
+            <div class="stat-num" id="st-air">0</div>
+            <div class="stat-label">Качество воздуха (PM2.5)</div>
           </div>
         </div>
         <div class="stat-card">
-          <div class="stat-icon">🖥️</div>
+          <div class="stat-icon">☀️</div>
           <div>
-            <div class="stat-num" id="st-infra">0</div>
-            <div class="stat-label">Кластеры (INFRA)</div>
+            <div class="stat-num" id="st-rad">0</div>
+            <div class="stat-label">УФ-радиация (UV)</div>
           </div>
         </div>
         <div class="stat-card">
@@ -76,10 +76,10 @@
         </div>
         <div class="filters">
           <select id="filter-source">
-            <option value="ALL">Все источники</option>
+            <option value="ALL">Все сенсоры</option>
             <option value="WEATHER">Метеостанции</option>
-            <option value="FINANCE">Финансы</option>
-            <option value="INFRASTRUCTURE">Кластеры</option>
+            <option value="AIR_QUALITY">Качество воздуха</option>
+            <option value="RADIATION">УФ-радиация</option>
           </select>
           <select id="filter-sort">
             <option value="CREATED_AT">По дате</option>
@@ -131,47 +131,103 @@
     </section>
 
     <section class="tab-panel" id="builder-tab">
-      <div class="builder-grid">
-        <div class="card">
-          <h3>Конструктор запроса</h3>
-          <div class="form-group">
-            <label>Лимит:</label>
-            <input type="number" id="qb-limit" value="3" min="1" max="20" style="width: 70px;">
+      <div class="builder-studio">
+        <div class="card builder-sidebar">
+          <div class="card-head">
+            <h3>Конструктор запроса</h3>
+            <span class="badge badge-accent">AST Builder</span>
           </div>
+
           <div class="form-group">
-            <label>Поля сущности Record:</label>
-            <div class="checkbox-list">
-              <label><input type="checkbox" id="qb-f-val" checked> Значение (value, unit)</label>
-              <label><input type="checkbox" id="qb-f-loc" checked> Локация (location - ур. 2)</label>
-              <label><input type="checkbox" id="qb-f-coord" checked> Координаты (coordinates - ур. 3)</label>
-              <label><input type="checkbox" id="qb-f-comm" checked> Отзывы (comments - ур. 2, Federation)</label>
-              <label><input type="checkbox" id="qb-f-author" checked> Автор (author - ур. 3)</label>
-              <label><input type="checkbox" id="qb-f-badge" checked> Бейдж автора (badge - ур. 4-5)</label>
+            <div class="form-label-row">
+              <label for="qb-limit">Размер выборки (pageSize):</label>
+              <span id="qb-limit-val" class="limit-indicator">3</span>
+            </div>
+            <input type="range" id="qb-limit" min="1" max="20" value="3" class="limit-slider">
+            <div class="quick-limits">
+              <button type="button" class="btn btn-xs btn-outline limit-btn" data-lim="1">1</button>
+              <button type="button" class="btn btn-xs btn-outline limit-btn" data-lim="3">3</button>
+              <button type="button" class="btn btn-xs btn-outline limit-btn" data-lim="5">5</button>
+              <button type="button" class="btn btn-xs btn-outline limit-btn" data-lim="10">10</button>
+              <button type="button" class="btn btn-xs btn-outline limit-btn" data-lim="20">20</button>
             </div>
           </div>
+
           <div class="form-group">
-            <label>Шаблоны:</label>
+            <label class="group-title">Структура и вложенность полей:</label>
+            <div class="builder-field-groups">
+              <div class="field-section">
+                <span class="field-sec-title">Базовые поля Record (Ур. 1)</span>
+                <label class="toggle-card">
+                  <input type="checkbox" id="qb-f-val" checked>
+                  <span class="toggle-label">Показатель и статус <code>value, unit, status</code></span>
+                </label>
+              </div>
+
+              <div class="field-section">
+                <span class="field-sec-title">Геолокация (Ур. 2-3)</span>
+                <label class="toggle-card">
+                  <input type="checkbox" id="qb-f-loc" checked>
+                  <span class="toggle-label">Локация <code>location { city, country }</code></span>
+                </label>
+                <label class="toggle-card sub-toggle">
+                  <input type="checkbox" id="qb-f-coord" checked>
+                  <span class="toggle-label">Координаты <code>coordinates { lat, lon }</code></span>
+                </label>
+              </div>
+
+              <div class="field-section">
+                <span class="field-sec-title">GraphQL Federation v2 (Ур. 2-5)</span>
+                <label class="toggle-card">
+                  <input type="checkbox" id="qb-f-comm" checked>
+                  <span class="toggle-label">Отзывы <code>comments { content }</code></span>
+                </label>
+                <label class="toggle-card sub-toggle">
+                  <input type="checkbox" id="qb-f-author" checked>
+                  <span class="toggle-label">Автор отзыва <code>author { username }</code></span>
+                </label>
+                <label class="toggle-card sub-toggle-2">
+                  <input type="checkbox" id="qb-f-badge" checked>
+                  <span class="toggle-label">Бейдж и грейд <code>badge { title, level }</code></span>
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="group-title">Пресеты сценариев:</label>
             <div class="template-btns">
-              <button class="btn btn-xs btn-outline" data-tmpl="deep">Глубокий (5 уровней)</button>
-              <button class="btn btn-xs btn-outline" data-tmpl="stats">Сводка</button>
-              <button class="btn btn-xs btn-outline" data-tmpl="depth-err">Тест глубины (>8)</button>
+              <button class="btn btn-xs btn-outline" data-tmpl="deep">⚡ Глубокий (5 уровней)</button>
+              <button class="btn btn-xs btn-outline" data-tmpl="stats">📊 Сводка метрик</button>
+              <button class="btn btn-xs btn-outline" data-tmpl="depth-err">🛡️ Тест лимитера (>8)</button>
             </div>
           </div>
-          <button class="btn btn-primary btn-block" id="btn-run-query">▶ Выполнить запрос</button>
+
+          <button class="btn btn-primary btn-block btn-run" id="btn-run-query">▶ Выполнить запрос</button>
         </div>
 
-        <div class="card">
-          <div class="card-head">
-            <span>GraphQL Document</span>
-            <span class="badge" id="qb-cache-tag">X-Cache: ---</span>
+        <div class="builder-workspace">
+          <div class="card editor-pane">
+            <div class="card-head">
+              <div class="pane-title">
+                <span class="pane-icon">📄</span>
+                <strong>GraphQL Query</strong>
+              </div>
+              <span class="badge" id="qb-cache-tag">X-Cache: ---</span>
+            </div>
+            <textarea id="qb-editor" spellcheck="false" placeholder="Введите GraphQL запрос..."></textarea>
           </div>
-          <textarea id="qb-editor" spellcheck="false"></textarea>
 
-          <div class="card-head mt-12">
-            <span>Ответ сервера</span>
-            <span class="badge badge-accent" id="qb-time-tag">0 ms</span>
+          <div class="card result-pane">
+            <div class="card-head">
+              <div class="pane-title">
+                <span class="pane-icon">⚡</span>
+                <strong>Результат ответа</strong>
+              </div>
+              <span class="badge badge-accent" id="qb-time-tag">0 ms</span>
+            </div>
+            <pre class="json-box" id="qb-result">Нажмите "Выполнить запрос"</pre>
           </div>
-          <pre class="json-box" id="qb-result">Нажмите "Выполнить запрос"</pre>
         </div>
       </div>
     </section>

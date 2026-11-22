@@ -5,8 +5,8 @@ const typeDefs = gql`
 
   enum DataSource {
     WEATHER
-    FINANCE
-    INFRASTRUCTURE
+    AIR_QUALITY
+    RADIATION
     ALL
   }
 
@@ -60,8 +60,8 @@ const typeDefs = gql`
   type Stats {
     total: Int!
     weather: Int!
-    finance: Int!
-    infra: Int!
+    airQuality: Int!
+    radiation: Int!
     alerts: Int!
   }
 

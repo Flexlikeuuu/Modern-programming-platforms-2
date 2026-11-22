@@ -71,8 +71,8 @@ class RecordsStore {
     return {
       total: this.records.length,
       weather: this.records.filter(r => r.source === 'WEATHER').length,
-      finance: this.records.filter(r => r.source === 'FINANCE').length,
-      infra: this.records.filter(r => r.source === 'INFRASTRUCTURE').length,
+      airQuality: this.records.filter(r => r.source === 'AIR_QUALITY').length,
+      radiation: this.records.filter(r => r.source === 'RADIATION').length,
       alerts: this.records.filter(r => r.status === 'ALERT').length
     };
   }

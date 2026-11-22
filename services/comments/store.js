@@ -1,31 +1,31 @@
 const AUTHORS = [
-  { id: 'usr-1', username: 'alex_ops', badge: { title: 'Lead SRE', level: 4 } },
-  { id: 'usr-2', username: 'elena_data', badge: { title: 'Data Scientist', level: 5 } },
-  { id: 'usr-3', username: 'kenji_iot', badge: { title: 'IoT Engineer', level: 3 } },
-  { id: 'usr-4', username: 'dmitry_dev', badge: { title: 'DevOps Architect', level: 5 } },
-  { id: 'usr-5', username: 'sarah_fin', badge: { title: 'Quant Analyst', level: 4 } },
-  { id: 'usr-6', username: 'olga_cloud', badge: { title: 'Cloud Specialist', level: 2 } }
+  { id: 'usr-1', username: 'alex_meteo', badge: { title: 'Senior Meteorologist', level: 4 } },
+  { id: 'usr-2', username: 'elena_eco', badge: { title: 'Lead Eco Inspector', level: 5 } },
+  { id: 'usr-3', username: 'kenji_sensor', badge: { title: 'IoT Station Engineer', level: 3 } },
+  { id: 'usr-4', username: 'dmitry_analyst', badge: { title: 'Climate Data Scientist', level: 5 } },
+  { id: 'usr-5', username: 'sarah_health', badge: { title: 'WHO Health Advisor', level: 4 } },
+  { id: 'usr-6', username: 'olga_monitor', badge: { title: 'Air Quality Specialist', level: 2 } }
 ];
 
 const WEATHER_TEMPLATES = [
-  'Калибровка датчиков давления и влажности завершена без отклонений.',
-  'Температурный тренд стабилен, погодные аномалии в данном регионе отсутствуют.',
+  'Калибровка метеодатчиков давления и влажности завершена без отклонений.',
+  'Температурный тренд стабилен, опасных циклонических аномалий не обнаружено.',
   'Зафиксирован кратковременный скачок температуры выше контрольного порога.',
   'Синхронизация с региональным метеорологическим спутником выполнена успешно.'
 ];
 
-const FINANCE_TEMPLATES = [
-  'Волатильность актива находится в пределах допустимого суточного коридора.',
-  'Резкий приток ликвидности в биржевом стакане, спред сузился.',
-  'Сформирован локальный уровень поддержки, объемы торгов стабильны.',
-  'Зафиксирована серия крупных рыночных сделок, признаков манипуляций нет.'
+const AIR_TEMPLATES = [
+  'Концентрация мелкодисперсных частиц PM2.5 в пределах строгих стандартов ВОЗ.',
+  'Зафиксирован повышенный уровень взвеси в приземном слое, рекомендуется мониторинг.',
+  'Качество воздуха отличное, индекс чистоты атмосферы на максимальном уровне.',
+  'Локальное скопление пылевых аэрозолей, показатели нормализуются с усилением ветра.'
 ];
 
-const INFRA_TEMPLATES = [
-  'Нагрузка на ядра CPU распределена между worker-нодами равномерно.',
-  'Показатели утилизации памяти в норме, автоскейлинг подов не требуется.',
-  'Пакетных потерь на сетевых интерфейсах кластера не обнаружено.',
-  'Рекомендуется плановая оптимизация фоновых фоновых daemon-процессов.'
+const RADIATION_TEMPLATES = [
+  'Ультрафиолетовый индекс находится в безопасной фоновой зеленой зоне.',
+  'Повышенная солнечная инсоляция: индекс УФ умеренный, датчики откалиброваны.',
+  'Высокая солнечная активность, уровень УФ требует применения защитных мер.',
+  'Фоновый радиационный мониторинг сенсора в пределах естественных климатических норм.'
 ];
 
 function hashString(str) {
@@ -69,8 +69,8 @@ class CommentsStore {
 
     const h = hashString(recordId);
     let templates = WEATHER_TEMPLATES;
-    if (recordId.startsWith('FIN')) templates = FINANCE_TEMPLATES;
-    else if (recordId.startsWith('INF')) templates = INFRA_TEMPLATES;
+    if (recordId.startsWith('AIR')) templates = AIR_TEMPLATES;
+    else if (recordId.startsWith('RAD')) templates = RADIATION_TEMPLATES;
 
     const author1 = this.authors[h % this.authors.length];
     const text1 = templates[h % templates.length];
@@ -104,7 +104,7 @@ class CommentsStore {
   addComment({ recordId, username, content }) {
     let author = this.authors.find(a => a.username === username);
     if (!author) {
-      author = { id: `usr-${this.authors.length + 1}`, username, badge: { title: 'User', level: 1 } };
+      author = { id: `usr-${this.authors.length + 1}`, username, badge: { title: 'Eco Analyst', level: 1 } };
       this.authors.push(author);
     }
 

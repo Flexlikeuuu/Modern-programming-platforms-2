@@ -85,7 +85,7 @@ async function loadData() {
 
   const query = `
     query GetData($search: String, $source: DataSource, $sortField: SortField, $sortOrder: SortOrder, $page: Int, $pageSize: Int) {
-      stats { total weather finance infra alerts }
+      stats { total weather airQuality radiation alerts }
       records(search: $search, source: $source, sortField: $sortField, sortOrder: $sortOrder, page: $page, pageSize: $pageSize) {
         items {
           id
@@ -122,9 +122,9 @@ async function loadData() {
     document.getElementById("st-total").textContent = s.total.toLocaleString();
     document.getElementById("st-weather").textContent =
       s.weather.toLocaleString();
-    document.getElementById("st-finance").textContent =
-      s.finance.toLocaleString();
-    document.getElementById("st-infra").textContent = s.infra.toLocaleString();
+    document.getElementById("st-air").textContent =
+      s.airQuality.toLocaleString();
+    document.getElementById("st-rad").textContent = s.radiation.toLocaleString();
     document.getElementById("st-alerts").textContent =
       s.alerts.toLocaleString();
     document.getElementById("stat-total-pill").textContent =
@@ -188,7 +188,10 @@ function updatePagination(showing, total, cur, totalPages, hasPrev, hasNext) {
 }
 
 function buildQuery() {
-  const limit = parseInt(document.getElementById("qb-limit").value, 10) || 3;
+  const limitInput = document.getElementById("qb-limit");
+  const limit = parseInt(limitInput?.value, 10) || 3;
+  const valEl = document.getElementById("qb-limit-val");
+  if (valEl) valEl.textContent = limit;
   const fVal = document.getElementById("qb-f-val").checked;
   const fLoc = document.getElementById("qb-f-loc").checked;
   const fCoord = document.getElementById("qb-f-coord").checked;
@@ -336,11 +339,36 @@ window.addEventListener("DOMContentLoaded", () => {
       }
     });
 
-  document.getElementById("qb-limit")?.addEventListener("input", buildQuery);
+  const qbLimit = document.getElementById("qb-limit");
+  if (qbLimit) {
+    qbLimit.addEventListener("input", (e) => {
+      const valEl = document.getElementById("qb-limit-val");
+      if (valEl) valEl.textContent = e.target.value;
+      buildQuery();
+    });
+  }
+
+  document.querySelectorAll(".limit-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const lim = btn.getAttribute("data-lim");
+      if (qbLimit) qbLimit.value = lim;
+      const valEl = document.getElementById("qb-limit-val");
+      if (valEl) valEl.textContent = lim;
+      buildQuery();
+    });
+  });
+
   document
-    .querySelectorAll(".checkbox-list input")
+    .querySelectorAll(".builder-field-groups input, .toggle-card input")
     .forEach((cb) => cb.addEventListener("change", buildQuery));
   document.getElementById("btn-run-query")?.addEventListener("click", runQuery);
+
+  document.getElementById("qb-editor")?.addEventListener("keydown", (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+      e.preventDefault();
+      runQuery();
+    }
+  });
 
   document.querySelectorAll(".template-btns button").forEach((b) => {
     b.addEventListener("click", () => {
@@ -349,7 +377,7 @@ window.addEventListener("DOMContentLoaded", () => {
       if (tmpl === "deep") {
         ed.value = `query DeepQuery {\n  records(pageSize: 2) {\n    items {\n      title\n      value\n      location {\n        city\n        coordinates { lat lon }\n      }\n      comments(limit: 1) {\n        content\n        author {\n          username\n          badge { title level }\n        }\n      }\n    }\n  }\n}`;
       } else if (tmpl === "stats") {
-        ed.value = `query Summary {\n  stats { total weather finance infra alerts }\n  systemMetrics { uptimeSeconds memoryRssMb nodeVersion }\n  subgraphsStatus { name status }\n}`;
+        ed.value = `query Summary {\n  stats { total weather airQuality radiation alerts }\n  systemMetrics { uptimeSeconds memoryRssMb nodeVersion }\n  subgraphsStatus { name status }\n}`;
       } else if (tmpl === "depth-err") {
         ed.value = `query DepthOverflow {\n  records(pageSize: 1) {\n    items {\n      comments {\n        record {\n          comments {\n            record {\n              comments {\n                author {\n                  badge {\n                    title\n                  }\n                }\n              }\n            }\n          }\n        }\n      }\n    }\n  }\n}`;
       }
